@@ -1,24 +1,29 @@
+import type { Deployment, Org } from '@vercel-internals/types';
+import {
+  type ArchiveFormat,
+  type DeploymentOptions,
+  type VercelClientOptions,
+  createDeployment,
+} from '@vercel/client';
+import { isErrorLike } from '@vercel/error-utils';
 import bytes from 'bytes';
 import chalk from 'chalk';
-import {
-  ArchiveFormat,
-  createDeployment,
-  DeploymentOptions,
-  VercelClientOptions,
-} from '@vercel/client';
-import { Output } from '../output';
+import type { Agent } from 'http';
+import type Now from '../../util';
+import { emoji, prependEmoji } from '../emoji';
+import { displayBuildLogs } from '../logs';
 import { progress } from '../output/progress';
-import Now from '../../util';
-import { Org } from '../../types';
 import ua from '../ua';
-import { linkFolderToProject } from '../projects/link';
-import { prependEmoji, emoji } from '../emoji';
+import output from '../../output-manager';
 
 function printInspectUrl(
-  output: Output,
-  inspectorUrl: string,
+  inspectorUrl: string | null | undefined,
   deployStamp: () => string
 ) {
+  if (!inspectorUrl) {
+    return;
+  }
+
   output.print(
     prependEmoji(
       `Inspect: ${chalk.bold(inspectorUrl)} ${deployStamp()}`,
@@ -29,16 +34,17 @@ function printInspectUrl(
 
 export default async function processDeployment({
   org,
-  cwd,
   projectName,
   isSettingUpProject,
   archive,
   skipAutoDetectionConfirmation,
+  noWait,
+  withLogs,
+  agent,
   ...args
 }: {
   now: Now;
-  output: Output;
-  paths: string[];
+  path: string;
   requestBody: DeploymentOptions;
   uploadStamp: () => string;
   deployStamp: () => string;
@@ -47,30 +53,32 @@ export default async function processDeployment({
   withCache?: boolean;
   org: Org;
   prebuilt: boolean;
+  vercelOutputDir?: string;
   projectName: string;
   isSettingUpProject: boolean;
   archive?: ArchiveFormat;
   skipAutoDetectionConfirmation?: boolean;
-  cwd?: string;
-  rootDirectory?: string;
+  rootDirectory?: string | null;
+  noWait?: boolean;
+  withLogs?: boolean;
+  agent?: Agent;
 }) {
-  let {
+  const {
     now,
-    output,
-    paths,
+    path,
     requestBody,
     deployStamp,
     force,
     withCache,
     quiet,
     prebuilt,
+    vercelOutputDir,
     rootDirectory,
   } = args;
 
-  const { debug } = output;
+  const client = now._client;
 
   const { env = {} } = requestBody;
-
   const token = now._token;
   if (!token) {
     throw new Error('Missing authentication token');
@@ -80,15 +88,17 @@ export default async function processDeployment({
     teamId: org.type === 'team' ? org.id : undefined,
     apiUrl: now._apiUrl,
     token,
-    debug: now._debug,
+    debug: output.isDebugEnabled(),
     userAgent: ua,
-    path: paths[0],
+    path,
     force,
     withCache,
     prebuilt,
+    vercelOutputDir,
     rootDirectory,
     skipAutoDetectionConfirmation,
     archive,
+    agent,
   };
 
   const deployingSpinnerVal = isSettingUpProject
@@ -100,6 +110,13 @@ export default async function processDeployment({
   // the deployment is done
   const indications = [];
 
+  let abortController: AbortController | undefined;
+
+  function stopSpinner(): void {
+    abortController?.abort();
+    output.stopSpinner();
+  }
+
   try {
     for await (const event of createDeployment(clientOptions, requestBody)) {
       if (['tip', 'notice', 'warning'].includes(event.type)) {
@@ -108,7 +125,7 @@ export default async function processDeployment({
 
       if (event.type === 'file-count') {
         const { total, missing, uploads } = event.payload;
-        debug(`Total files ${total.size}, ${missing.length} changed`);
+        output.debug(`Total files ${total.size}, ${missing.length} changed`);
 
         const missingSize = missing
           .map((sha: string) => total.get(sha).data.length)
@@ -151,7 +168,7 @@ export default async function processDeployment({
       }
 
       if (event.type === 'file-uploaded') {
-        debug(
+        output.debug(
           `Uploaded: ${event.payload.file.names.join(' ')} (${bytes(
             event.payload.file.data.length
           )})`
@@ -159,39 +176,57 @@ export default async function processDeployment({
       }
 
       if (event.type === 'created') {
-        await linkFolderToProject(
-          output,
-          cwd || paths[0],
-          {
-            orgId: org.id,
-            projectId: event.payload.projectId,
-          },
-          projectName,
-          org.slug
+        const deployment: Deployment = event.payload;
+
+        now.url = deployment.url;
+
+        stopSpinner();
+
+        printInspectUrl(deployment.inspectorUrl, deployStamp);
+
+        const isProdDeployment = deployment.target === 'production';
+        const previewUrl = `https://${deployment.url}`;
+
+        output.print(
+          prependEmoji(
+            `${isProdDeployment ? 'Production' : 'Preview'}: ${chalk.bold(
+              previewUrl
+            )} ${deployStamp()}`,
+            emoji('success')
+          ) + `\n`
         );
 
-        now.url = event.payload.url;
-
-        output.stopSpinner();
-
-        printInspectUrl(output, event.payload.inspectorUrl, deployStamp);
-
-        if (quiet) {
+        if (quiet || process.env.FORCE_TTY === '1') {
           process.stdout.write(`https://${event.payload.url}`);
         }
 
+        if (noWait) {
+          return deployment;
+        }
+
+        if (withLogs) {
+          let promise: Promise<void>;
+          ({ abortController, promise } = displayBuildLogs(
+            client,
+            deployment,
+            true
+          ));
+          promise.catch(error =>
+            output.warn(`Failed to read build logs: ${error}`)
+          );
+        }
         output.spinner(
-          event.payload.readyState === 'QUEUED' ? 'Queued' : 'Building',
+          deployment.readyState === 'QUEUED' ? 'Queued' : 'Building',
           0
         );
       }
 
-      if (event.type === 'building') {
+      if (event.type === 'building' && !withLogs) {
         output.spinner('Building', 0);
       }
 
       if (event.type === 'canceled') {
-        output.stopSpinner();
+        stopSpinner();
         return event.payload;
       }
 
@@ -201,23 +236,31 @@ export default async function processDeployment({
         event.type === 'ready' &&
         (event.payload.checksState
           ? event.payload.checksState === 'completed'
-          : true)
+          : true) &&
+        !withLogs
       ) {
         output.spinner('Completing', 0);
       }
 
-      if (event.type === 'checks-running') {
+      if (event.type === 'checks-running' && !withLogs) {
         output.spinner('Running Checks', 0);
       }
 
       if (event.type === 'checks-conclusion-failed') {
-        output.stopSpinner();
+        stopSpinner();
         return event.payload;
       }
 
       // Handle error events
       if (event.type === 'error') {
-        output.stopSpinner();
+        stopSpinner();
+
+        if (!archive) {
+          const maybeError = handleErrorSolvableWithArchive(event.payload);
+          if (maybeError) {
+            throw maybeError;
+          }
+        }
 
         const error = await now.handleDeploymentError(event.payload, {
           env,
@@ -227,17 +270,46 @@ export default async function processDeployment({
           return error;
         }
 
+        if (error.code === 'forbidden') {
+          return error;
+        }
+
         throw error;
       }
 
       // Handle alias-assigned event
       if (event.type === 'alias-assigned') {
+        stopSpinner();
         event.payload.indications = indications;
         return event.payload;
       }
     }
   } catch (err) {
-    output.stopSpinner();
+    stopSpinner();
     throw err;
+  }
+}
+
+export const archiveSuggestionText =
+  'Try using `--archive=tgz` to limit the amount of files you upload.';
+
+export class UploadErrorMissingArchive extends Error {
+  link = 'https://vercel.com/docs/cli/deploy#archive';
+}
+
+export function handleErrorSolvableWithArchive(error: unknown) {
+  if (isErrorLike(error)) {
+    const isUploadRateLimit =
+      'errorName' in error &&
+      typeof error.errorName === 'string' &&
+      error.errorName.startsWith('api-upload-');
+    const isTooManyFilesLimit =
+      'code' in error && error.code === 'too_many_files';
+
+    if (isUploadRateLimit || isTooManyFilesLimit) {
+      return new UploadErrorMissingArchive(
+        `${error.message}\n${archiveSuggestionText}`
+      );
+    }
   }
 }

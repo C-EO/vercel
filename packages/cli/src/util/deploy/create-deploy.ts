@@ -1,33 +1,25 @@
 import generateCertForDeploy from './generate-cert-for-deploy';
 import * as ERRORS_TS from '../errors-ts';
-import * as ERRORS from '../errors';
 import { NowError } from '../now-error';
 import mapCertError from '../certs/map-cert-error';
-import { Org } from '../../types';
-import Now, { CreateOptions } from '..';
-import Client from '../client';
-import { ArchiveFormat, DeploymentError } from '@vercel/client';
+import type { Org } from '@vercel-internals/types';
+import type Now from '..';
+import type { CreateOptions } from '..';
+import type Client from '../client';
+import type { ArchiveFormat, DeploymentError } from '@vercel/client';
 
 export default async function createDeploy(
   client: Client,
   now: Now,
   contextName: string,
-  paths: string[],
+  path: string,
   createArgs: CreateOptions,
   org: Org,
   isSettingUpProject: boolean,
-  cwd?: string,
   archive?: ArchiveFormat
 ): Promise<any | DeploymentError> {
   try {
-    return await now.create(
-      paths,
-      createArgs,
-      org,
-      isSettingUpProject,
-      archive,
-      cwd
-    );
+    return await now.create(path, createArgs, org, isSettingUpProject, archive);
   } catch (err: unknown) {
     if (ERRORS_TS.isAPIError(err)) {
       if (err.code === 'rate_limited') {
@@ -69,7 +61,7 @@ export default async function createDeploy(
       }
 
       if (err.code === 'bad_request' && err.keyword) {
-        throw new ERRORS.SchemaValidationFailed(
+        throw new ERRORS_TS.SchemaValidationFailed(
           err.message,
           err.keyword,
           err.dataPath,
@@ -109,7 +101,7 @@ export default async function createDeploy(
           client,
           now,
           contextName,
-          paths,
+          path,
           createArgs,
           org,
           isSettingUpProject
