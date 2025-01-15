@@ -3,22 +3,20 @@ import plural from 'pluralize';
 import npa from 'npm-package-arg';
 import { satisfies } from 'semver';
 import { dirname, join } from 'path';
+import { createRequire } from 'module';
 import { mkdirp, outputJSON, readJSON, symlink } from 'fs-extra';
 import { isStaticRuntime } from '@vercel/fs-detectors';
-import {
-  BuilderV2,
-  BuilderV3,
-  PackageJson,
-  spawnAsync,
-} from '@vercel/build-utils';
+import type { BuilderV2, BuilderV3, PackageJson } from '@vercel/build-utils';
+import execa from 'execa';
 import * as staticBuilder from './static-builder';
 import { VERCEL_DIR } from '../projects/link';
-import { Output } from '../output';
 import readJSONFile from '../read-json-file';
 import { CantParseJSONFile } from '../errors-ts';
-import { errorToString, isErrnoException, isError } from '@vercel/error-utils';
+import { isErrnoException, isError } from '@vercel/error-utils';
 import cmd from '../output/cmd';
 import code from '../output/code';
+import type { Writable } from 'stream';
+import output from '../../output-manager';
 
 export interface BuilderWithPkg {
   path: string;
@@ -31,30 +29,30 @@ type ResolveBuildersResult =
   | { buildersToAdd: Set<string> }
   | { builders: Map<string, BuilderWithPkg> };
 
+// Get a real `require()` reference that esbuild won't mutate
+const require_ = createRequire(__filename);
+
 /**
  * Imports the specified Vercel Builders, installing any missing ones
  * into `.vercel/builders` if necessary.
  */
 export async function importBuilders(
   builderSpecs: Set<string>,
-  cwd: string,
-  output: Output
+  cwd: string
 ): Promise<Map<string, BuilderWithPkg>> {
   const buildersDir = join(cwd, VERCEL_DIR, 'builders');
 
-  let importResult = await resolveBuilders(buildersDir, builderSpecs, output);
+  let importResult = await resolveBuilders(buildersDir, builderSpecs);
 
   if ('buildersToAdd' in importResult) {
     const installResult = await installBuilders(
       buildersDir,
-      importResult.buildersToAdd,
-      output
+      importResult.buildersToAdd
     );
 
     importResult = await resolveBuilders(
       buildersDir,
       builderSpecs,
-      output,
       installResult.resolvedSpecs
     );
 
@@ -69,7 +67,6 @@ export async function importBuilders(
 export async function resolveBuilders(
   buildersDir: string,
   builderSpecs: Set<string>,
-  output: Output,
   resolvedSpecs?: Map<string, string>
 ): Promise<ResolveBuildersResult> {
   const builders = new Map<string, BuilderWithPkg>();
@@ -79,7 +76,7 @@ export async function resolveBuilders(
     const resolvedSpec = resolvedSpecs?.get(spec) || spec;
     const parsed = npa(resolvedSpec);
 
-    let { name } = parsed;
+    const { name } = parsed;
     if (!name) {
       // A URL was specified - will need to install it and resolve the
       // proper package name from the written `package.json` file
@@ -107,15 +104,20 @@ export async function resolveBuilders(
         // at the top-level of `node_modules` since CLI is installing those directly.
         pkgPath = join(buildersDir, 'node_modules', name, 'package.json');
         builderPkg = await readJSON(pkgPath);
-      } catch (err: any) {
-        if (err?.code !== 'ENOENT') throw err;
+      } catch (error: unknown) {
+        if (!isErrnoException(error)) {
+          throw error;
+        }
+        if (error.code !== 'ENOENT') {
+          throw error;
+        }
+
         // If `pkgPath` wasn't found in `.vercel/builders` then try as a CLI local
         // dependency. `require.resolve()` will throw if the Builder is not a CLI
         // dep, in which case we'll install it into `.vercel/builders`.
-        // NOTE: `eval('require')` is necessary to avoid bad transpilation to `__webpack_require__`
-        pkgPath = eval('require').resolve(`${name}/package.json`, {
+        pkgPath = require_.resolve(`${name}/package.json`, {
           paths: [__dirname],
-        }) as string;
+        });
         builderPkg = await readJSON(pkgPath);
       }
 
@@ -156,8 +158,7 @@ export async function resolveBuilders(
 
       const path = join(dirname(pkgPath), builderPkg.main || 'index.js');
 
-      // NOTE: `eval('require')` is necessary to avoid bad transpilation to `__webpack_require__`
-      const builder = eval('require')(path);
+      const builder = require_(path);
 
       builders.set(spec, {
         builder,
@@ -190,8 +191,7 @@ export async function resolveBuilders(
 
 async function installBuilders(
   buildersDir: string,
-  buildersToAdd: Set<string>,
-  output: Output
+  buildersToAdd: Set<string>
 ) {
   const resolvedSpecs = new Map<string, string>();
   const buildersPkgPath = join(buildersDir, 'package.json');
@@ -213,32 +213,41 @@ async function installBuilders(
     ).join(', ')}`
   );
   try {
-    await spawnAsync(
+    const { stderr } = await execa(
       'npm',
       ['install', '@vercel/build-utils', ...buildersToAdd],
       {
         cwd: buildersDir,
         stdio: 'pipe',
+        reject: true,
       }
     );
+    stderr
+      .split('/\r?\n/')
+      .filter(line => line.includes('npm WARN deprecated'))
+      .forEach(line => {
+        output.warn(line);
+      });
   } catch (err: unknown) {
     if (isError(err)) {
-      (err as any).link =
-        'https://vercel.link/builder-dependencies-install-failed';
-      if (isErrnoException(err) && err.code === 'ENOENT') {
+      const execaMessage = err.message;
+      let message = getErrorMessage(err, execaMessage);
+      if (execaMessage.startsWith('Command failed with ENOENT')) {
         // `npm` is not installed
-        err.message = `Please install ${cmd('npm')} before continuing`;
+        message = `Please install ${cmd('npm')} before continuing`;
       } else {
-        const message = errorToString(err);
         const notFound = /GET (.*) - Not found/.exec(message);
         if (notFound) {
           const url = new URL(notFound[1]);
           const packageName = decodeURIComponent(url.pathname.slice(1));
-          err.message = `The package ${code(
+          message = `The package ${code(
             packageName
           )} is not published on the npm registry`;
         }
       }
+      err.message = message;
+      (err as any).link =
+        'https://vercel.link/builder-dependencies-install-failed';
     }
     throw err;
   }
@@ -275,4 +284,20 @@ async function installBuilders(
   }
 
   return { resolvedSpecs };
+}
+
+type BonusError = Error & {
+  stderr?: string | Writable;
+};
+
+function getErrorMessage(err: BonusError, execaMessage: string) {
+  if (!err || !('stderr' in err)) {
+    return execaMessage;
+  }
+
+  if (typeof err.stderr === 'string') {
+    return err.stderr;
+  }
+
+  return execaMessage;
 }

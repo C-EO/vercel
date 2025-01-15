@@ -13,6 +13,8 @@ function initSentry() {
   sentryInitDone = true;
 
   init({
+    // Cannot figure out what's going wrong here. VSCode resolves this fine. But when we build it blows up.
+    // @ts-ignore
     dsn: assertEnv('SENTRY_DSN'),
     environment: process.env.NODE_ENV || 'production',
     release: `${serviceName}`,
@@ -20,7 +22,12 @@ function initSentry() {
 }
 
 export function errorHandler(error: Error, extras?: { [key: string]: any }) {
+  console.error(error);
+
   if (!process.env.SENTRY_DSN) {
+    console.log(
+      'Skipping Sentry error reporting because SENTRY_DSN is not set'
+    );
     return;
   }
 

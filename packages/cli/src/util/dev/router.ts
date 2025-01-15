@@ -2,10 +2,10 @@ import url from 'url';
 import PCRE from 'pcre-to-regexp';
 
 import isURL from './is-url';
-import DevServer from './server';
+import type DevServer from './server';
 
-import { VercelConfig, HttpHeadersConfig, RouteResult } from './types';
-import { isHandler, Route, HandleValue } from '@vercel/routing-utils';
+import type { VercelConfig, HttpHeadersConfig, RouteResult } from './types';
+import { isHandler, type Route, type HandleValue } from '@vercel/routing-utils';
 import { parseQueryString } from './parse-query-string';
 
 export function resolveRouteParameters(
@@ -57,8 +57,9 @@ export async function devRouter(
   phase?: HandleValue | null
 ): Promise<RouteResult> {
   let result: RouteResult | undefined;
+  // eslint-disable-next-line prefer-const
   let { pathname: reqPathname, search: reqSearch } = url.parse(reqUrl);
-  reqPathname ??= '/';
+  reqPathname = reqPathname || '/';
   const reqQuery = parseQueryString(reqSearch);
   const combinedHeaders: HttpHeadersConfig = { ...previousHeaders };
   let status: number | undefined;
@@ -76,7 +77,7 @@ export async function devRouter(
         continue;
       }
 
-      let { src, headers, methods } = routeConfig;
+      const { src, headers, methods } = routeConfig;
 
       if (Array.isArray(methods) && reqMethod && !methods.includes(reqMethod)) {
         continue;
@@ -132,7 +133,7 @@ export async function devRouter(
           !isDestUrl
         ) {
           let { pathname } = url.parse(destPath);
-          pathname ??= '/';
+          pathname = pathname || '/';
           const hasDestFile = await devServer.hasFilesystem(
             pathname,
             vercelConfig
@@ -188,9 +189,10 @@ export async function devRouter(
           if (!destPath.startsWith('/')) {
             destPath = `/${destPath}`;
           }
+          // eslint-disable-next-line prefer-const
           let { pathname: destPathname, search: destSearch } =
             url.parse(destPath);
-          destPathname ??= '/';
+          destPathname = destPathname || '/';
           const destQuery = parseQueryString(destSearch);
           Object.assign(destQuery, reqQuery);
           result = {

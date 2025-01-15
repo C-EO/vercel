@@ -1,7 +1,9 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import fetch from 'node-fetch';
-import listen from 'async-listen';
-import { createServer, IncomingMessage, Server, ServerResponse } from 'http';
-import { JSONValue } from '../../../src/types';
+import { listen } from 'async-listen';
+import type { IncomingMessage, Server, ServerResponse } from 'http';
+import { createServer } from 'http';
+import type { JSONValue } from '@vercel-internals/types';
 import {
   responseError,
   responseErrorMessage,
@@ -22,7 +24,7 @@ describe('responseError()', () => {
 
   beforeAll(async () => {
     server = createServer((req, res) => handler(req, res));
-    url = await listen(server);
+    url = (await listen(server)).toString();
   });
 
   afterAll(() => {

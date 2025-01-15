@@ -8,11 +8,15 @@ export const build: BuildV2 = async ({ entrypoint, files, config }) => {
   const output: Files = {};
   const outputDirectory = config.zeroConfig ? config.outputDirectory : '';
 
+  // eslint-disable-next-line prefer-const
   for (let [filename, fileFsRef] of Object.entries(files)) {
     if (
       filename.startsWith('.git/') ||
       filename === 'vercel.json' ||
-      filename === 'now.json'
+      filename === '.vercelignore' ||
+      filename === 'now.json' ||
+      filename === '.nowignore' ||
+      filename.startsWith('.env')
     ) {
       continue;
     }

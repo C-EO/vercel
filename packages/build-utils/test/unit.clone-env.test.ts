@@ -1,3 +1,4 @@
+import { it, expect } from 'vitest';
 import { cloneEnv } from '../src';
 
 it('should clone env with Path', () => {
@@ -32,6 +33,31 @@ it('should clone env with PATH', () => {
     })
   ).toEqual({
     foo: 'bar',
+    PATH: 'baz',
+  });
+});
+
+it('should not overwrite PATH when path is undefined', () => {
+  expect(
+    cloneEnv(
+      {
+        PATH: 'baz',
+      },
+      new Proxy(
+        {
+          Path: undefined,
+        },
+        {
+          get(target: typeof process.env, prop: string) {
+            if (prop === 'PATH') {
+              return target.PATH ?? target.Path;
+            }
+            return target[prop];
+          },
+        }
+      )
+    )
+  ).toEqual({
     PATH: 'baz',
   });
 });

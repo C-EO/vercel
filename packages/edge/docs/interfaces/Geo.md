@@ -9,8 +9,10 @@ The location information of a given request.
 - [city](Geo.md#city)
 - [country](Geo.md#country)
 - [countryRegion](Geo.md#countryregion)
+- [flag](Geo.md#flag)
 - [latitude](Geo.md#latitude)
 - [longitude](Geo.md#longitude)
+- [postalCode](Geo.md#postalcode)
 - [region](Geo.md#region)
 
 ## Properties
@@ -23,7 +25,7 @@ The city that the request originated from.
 
 #### Defined in
 
-[src/edge-headers.ts:47](https://github.com/vercel/vercel/blob/main/packages/edge/src/edge-headers.ts#L47)
+packages/functions/headers.d.ts:59
 
 ---
 
@@ -35,7 +37,7 @@ The country that the request originated from.
 
 #### Defined in
 
-[src/edge-headers.ts:50](https://github.com/vercel/vercel/blob/main/packages/edge/src/edge-headers.ts#L50)
+packages/functions/headers.d.ts:61
 
 ---
 
@@ -48,7 +50,19 @@ See [docs](https://vercel.com/docs/concepts/edge-network/headers#x-vercel-ip-cou
 
 #### Defined in
 
-[src/edge-headers.ts:58](https://github.com/vercel/vercel/blob/main/packages/edge/src/edge-headers.ts#L58)
+packages/functions/headers.d.ts:69
+
+---
+
+### flag
+
+• `Optional` **flag**: `string`
+
+The flag emoji for the country the request originated from.
+
+#### Defined in
+
+packages/functions/headers.d.ts:63
 
 ---
 
@@ -60,7 +74,7 @@ The latitude of the client.
 
 #### Defined in
 
-[src/edge-headers.ts:61](https://github.com/vercel/vercel/blob/main/packages/edge/src/edge-headers.ts#L61)
+packages/functions/headers.d.ts:71
 
 ---
 
@@ -72,7 +86,19 @@ The longitude of the client.
 
 #### Defined in
 
-[src/edge-headers.ts:64](https://github.com/vercel/vercel/blob/main/packages/edge/src/edge-headers.ts#L64)
+packages/functions/headers.d.ts:73
+
+---
+
+### postalCode
+
+• `Optional` **postalCode**: `string`
+
+The postal code of the client
+
+#### Defined in
+
+packages/functions/headers.d.ts:75
 
 ---
 
@@ -84,4 +110,4 @@ The [Vercel Edge Network region](https://vercel.com/docs/concepts/edge-network/r
 
 #### Defined in
 
-[src/edge-headers.ts:53](https://github.com/vercel/vercel/blob/main/packages/edge/src/edge-headers.ts#L53)
+packages/functions/headers.d.ts:65

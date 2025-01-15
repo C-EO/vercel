@@ -1,11 +1,7 @@
-import chalk from 'chalk';
-
-import Client from '../../util/client';
-import getArgs from '../../util/get-args';
+import type Client from '../../util/client';
+import { parseArguments } from '../../util/get-args';
 import getSubcommand from '../../util/get-subcommand';
-import handleError from '../../util/handle-error';
-import logo from '../../util/output/logo';
-
+import { printError } from '../../util/error';
 import add from './add';
 import buy from './buy';
 import transferIn from './transfer-in';
@@ -13,68 +9,19 @@ import inspect from './inspect';
 import ls from './ls';
 import rm from './rm';
 import move from './move';
-import { getPkgName } from '../../util/pkg-name';
-
-const help = () => {
-  console.log(`
-  ${chalk.bold(`${logo} ${getPkgName()} domains`)} [options] <command>
-
-  ${chalk.dim('Commands:')}
-
-    ls                                  Show all domains in a list
-    inspect      [name]                 Displays information related to a domain
-    add          [name] [project]       Add a new domain that you already own
-    rm           [name]                 Remove a domain
-    buy          [name]                 Buy a domain that you don't yet own
-    move         [name] [destination]   Move a domain to another user or team.
-    transfer-in  [name]                 Transfer in a domain to Vercel
-
-  ${chalk.dim('Options:')}
-
-    -h, --help                     Output usage information
-    -d, --debug                    Debug mode [off]
-    -f, --force                    Force a domain on a project and remove it from an existing one
-    -A ${chalk.bold.underline('FILE')}, --local-config=${chalk.bold.underline(
-    'FILE'
-  )}   Path to the local ${'`vercel.json`'} file
-    -Q ${chalk.bold.underline('DIR')}, --global-config=${chalk.bold.underline(
-    'DIR'
-  )}    Path to the global ${'`.vercel`'} directory
-    -t ${chalk.bold.underline('TOKEN')}, --token=${chalk.bold.underline(
-    'TOKEN'
-  )}        Login token
-    -S, --scope                    Set a custom scope
-    -N, --next                     Show next page of results
-    --limit=${chalk.bold.underline(
-      'VALUE'
-    )}                  Number of results to return per page (default: 20, max: 100)
-    -y, --yes                      Skip the confirmation prompt when removing a domain
-
-  ${chalk.dim('Examples:')}
-
-  ${chalk.gray('–')} Add a domain that you already own
-
-      ${chalk.cyan(
-        `$ ${getPkgName()} domains add ${chalk.underline('domain-name.com')}`
-      )}
-
-      Make sure the domain's DNS nameservers are at least 2 of the
-      ones listed on ${chalk.underline('https://vercel.com/edge-network')}.
-
-      ${chalk.yellow('NOTE:')} Running ${chalk.dim(
-    `${getPkgName()} alias`
-  )} will automatically register your domain
-      if it's configured with these nameservers (no need to ${chalk.dim(
-        '`domain add`'
-      )}).
-
-  ${chalk.gray('–')} Paginate results, where ${chalk.dim(
-    '`1584722256178`'
-  )} is the time in milliseconds since the UNIX epoch.
-
-      ${chalk.cyan(`$ ${getPkgName()} domains ls --next 1584722256178`)}
-`);
-};
+import {
+  addSubcommand,
+  buySubcommand,
+  domainsCommand,
+  inspectSubcommand,
+  moveSubcommand,
+  removeSubcommand,
+  transferInSubcommand,
+} from './command';
+import { type Command, help } from '../help';
+import { getFlagsSpecification } from '../../util/get-flags-specification';
+import { DomainsTelemetryClient } from '../../util/telemetry/commands/domains';
+import output from '../../output-manager';
 
 const COMMAND_CONFIG = {
   add: ['add'],
@@ -87,43 +34,92 @@ const COMMAND_CONFIG = {
 };
 
 export default async function main(client: Client) {
-  let argv;
-
+  let parsedArgs;
+  const flagsSpecification = getFlagsSpecification(domainsCommand.options);
   try {
-    argv = getArgs(client.argv.slice(2), {
-      '--code': String,
-      '--yes': Boolean,
-      '--force': Boolean,
-      '--next': Number,
-      '-N': '--next',
-      '-y': '--yes',
-      '--limit': Number,
+    parsedArgs = parseArguments(client.argv.slice(2), flagsSpecification, {
+      permissive: true,
     });
   } catch (error) {
-    handleError(error);
+    printError(error);
     return 1;
   }
 
-  if (argv['--help']) {
-    help();
+  const telemetry = new DomainsTelemetryClient({
+    opts: {
+      store: client.telemetryEventStore,
+    },
+  });
+
+  const { subcommand, args, subcommandOriginal } = getSubcommand(
+    parsedArgs.args.slice(1),
+    COMMAND_CONFIG
+  );
+
+  const needHelp = parsedArgs.flags['--help'];
+
+  if (!subcommand && needHelp) {
+    telemetry.trackCliFlagHelp('domains');
+    output.print(help(domainsCommand, { columns: client.stderr.columns }));
     return 2;
   }
 
-  const { subcommand, args } = getSubcommand(argv._.slice(1), COMMAND_CONFIG);
+  function printHelp(command: Command) {
+    output.print(
+      help(command, { parent: domainsCommand, columns: client.stderr.columns })
+    );
+    return 2;
+  }
+
   switch (subcommand) {
     case 'add':
-      return add(client, argv, args);
+      if (needHelp) {
+        telemetry.trackCliFlagHelp('domains', subcommandOriginal);
+        return printHelp(addSubcommand);
+      }
+      telemetry.trackCliSubcommandAdd(subcommandOriginal);
+      return add(client, args);
     case 'inspect':
-      return inspect(client, argv, args);
+      if (needHelp) {
+        telemetry.trackCliFlagHelp('domains', subcommandOriginal);
+        return printHelp(inspectSubcommand);
+      }
+      telemetry.trackCliSubcommandInspect(subcommandOriginal);
+      return inspect(client, args);
     case 'move':
-      return move(client, argv, args);
+      if (needHelp) {
+        telemetry.trackCliFlagHelp('domains', subcommandOriginal);
+        return printHelp(moveSubcommand);
+      }
+      telemetry.trackCliSubcommandMove(subcommandOriginal);
+      return move(client, args);
     case 'buy':
-      return buy(client, argv, args);
+      if (needHelp) {
+        telemetry.trackCliFlagHelp('domains', subcommandOriginal);
+        return printHelp(buySubcommand);
+      }
+      telemetry.trackCliSubcommandBuy(subcommandOriginal);
+      return buy(client, args);
     case 'rm':
-      return rm(client, argv, args);
+      if (needHelp) {
+        telemetry.trackCliFlagHelp('domains', subcommandOriginal);
+        return printHelp(removeSubcommand);
+      }
+      telemetry.trackCliSubcommandRemove(subcommandOriginal);
+      return rm(client, args);
     case 'transferIn':
-      return transferIn(client, argv, args);
+      if (needHelp) {
+        telemetry.trackCliFlagHelp('domains', subcommandOriginal);
+        return printHelp(transferInSubcommand);
+      }
+      telemetry.trackCliSubcommandTransferIn(subcommandOriginal);
+      return transferIn(client, args);
     default:
-      return ls(client, argv, args);
+      if (needHelp) {
+        telemetry.trackCliFlagHelp('domains', subcommandOriginal);
+        return printHelp(transferInSubcommand);
+      }
+      telemetry.trackCliSubcommandList(subcommandOriginal);
+      return ls(client, args);
   }
 }

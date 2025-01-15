@@ -7,6 +7,7 @@ import {
   execCommand,
   getEnvForPackageManager,
   getNodeVersion,
+  getPrefixedEnvVars,
   getSpawnOptions,
   glob,
   readConfigFile,
@@ -29,6 +30,15 @@ export const build: BuildV2 = async ({
 
   await download(files, workPath, meta);
 
+  const prefixedEnvs = getPrefixedEnvVars({
+    envPrefix: 'PUBLIC_',
+    envs: process.env,
+  });
+
+  for (const [key, value] of Object.entries(prefixedEnvs)) {
+    process.env[key] = value;
+  }
+
   const mountpoint = dirname(entrypoint);
   const entrypointDir = join(workPath, mountpoint);
 
@@ -41,13 +51,20 @@ export const build: BuildV2 = async ({
   );
 
   const spawnOpts = getSpawnOptions(meta, nodeVersion);
-  const { cliType, lockfileVersion } = await scanParentDirs(entrypointDir);
+  const {
+    cliType,
+    lockfileVersion,
+    packageJsonPackageManager,
+    turboSupportsCorepackHome,
+  } = await scanParentDirs(entrypointDir, true);
 
   spawnOpts.env = getEnvForPackageManager({
     cliType,
     lockfileVersion,
+    packageJsonPackageManager,
     nodeVersion,
     env: spawnOpts.env || {},
+    turboSupportsCorepackHome,
   });
 
   if (typeof installCommand === 'string') {
@@ -116,7 +133,6 @@ export const build: BuildV2 = async ({
   ]);
 
   const edgeFunction = new EdgeFunction({
-    name: 'hydrogen',
     deploymentTarget: 'v8-worker',
     entrypoint: 'index.js',
     files: edgeFunctionFiles,

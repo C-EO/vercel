@@ -1,132 +1,102 @@
-import chalk from 'chalk';
-
-import Client from '../../util/client';
-import getArgs from '../../util/get-args';
+import { parseArguments } from '../../util/get-args';
 import getSubcommand from '../../util/get-subcommand';
-import handleError from '../../util/handle-error';
-import logo from '../../util/output/logo';
-import { getPkgName } from '../../util/pkg-name';
-
+import { printError } from '../../util/error';
 import add from './add';
 import importZone from './import';
 import ls from './ls';
 import rm from './rm';
-
-const help = () => {
-  console.log(`
-  ${chalk.bold(`${logo} ${getPkgName()} dns`)} [options] <command>
-
-  ${chalk.dim('Commands:')}
-
-    add     [details]             Add a new DNS entry (see below for examples)
-    import  [domain] [zonefile]   Import a DNS zone file (see below for examples)
-    rm      [id]                  Remove a DNS entry using its ID
-    ls      [domain]              List all DNS entries for a domain
-
-  ${chalk.dim('Options:')}
-
-    -h, --help                     Output usage information
-    -A ${chalk.bold.underline('FILE')}, --local-config=${chalk.bold.underline(
-    'FILE'
-  )}   Path to the local ${'`vercel.json`'} file
-    -Q ${chalk.bold.underline('DIR')}, --global-config=${chalk.bold.underline(
-    'DIR'
-  )}    Path to the global ${'`.vercel`'} directory
-    -d, --debug                    Debug mode [off]
-    -t ${chalk.bold.underline('TOKEN')}, --token=${chalk.bold.underline(
-    'TOKEN'
-  )}        Login token
-    -S, --scope                    Set a custom scope
-    -N, --next                     Show next page of results
-    --limit=${chalk.bold.underline(
-      'VALUE'
-    )}                  Number of results to return per page (default: 20, max: 100)
-
-  ${chalk.dim('Examples:')}
-
-  ${chalk.gray('–')} Add an A record for a subdomain
-
-      ${chalk.cyan(
-        `$ ${getPkgName()} dns add <DOMAIN> <SUBDOMAIN> <A | AAAA | ALIAS | CNAME | TXT>  <VALUE>`
-      )}
-      ${chalk.cyan(`$ ${getPkgName()} dns add zeit.rocks api A 198.51.100.100`)}
-
-  ${chalk.gray('–')} Add an MX record (@ as a name refers to the domain)
-
-      ${chalk.cyan(
-        `$ ${getPkgName()} dns add <DOMAIN> '@' MX <RECORD VALUE> <PRIORITY>`
-      )}
-      ${chalk.cyan(
-        `$ ${getPkgName()} dns add zeit.rocks '@' MX mail.zeit.rocks 10`
-      )}
-
-  ${chalk.gray('–')} Add an SRV record
-
-      ${chalk.cyan(
-        `$ ${getPkgName()} dns add <DOMAIN> <NAME> SRV <PRIORITY> <WEIGHT> <PORT> <TARGET>`
-      )}
-      ${chalk.cyan(
-        `$ ${getPkgName()} dns add zeit.rocks '@' SRV 10 0 389 zeit.party`
-      )}
-
-  ${chalk.gray('–')} Add a CAA record
-
-      ${chalk.cyan(
-        `$ ${getPkgName()} dns add <DOMAIN> <NAME> CAA '<FLAGS> <TAG> "<VALUE>"'`
-      )}
-      ${chalk.cyan(
-        `$ ${getPkgName()} dns add zeit.rocks '@' CAA '0 issue "example.com"'`
-      )}
-
-  ${chalk.gray('–')} Import a Zone file
-
-      ${chalk.cyan(`$ ${getPkgName()} dns import <DOMAIN> <FILE>`)}
-      ${chalk.cyan(`$ ${getPkgName()} dns import zeit.rocks ./zonefile.txt`)}
-
-  ${chalk.gray('–')} Paginate results, where ${chalk.dim(
-    '`1584722256178`'
-  )} is the time in milliseconds since the UNIX epoch.
-
-      ${chalk.cyan(`$ ${getPkgName()} dns ls --next 1584722256178`)}
-      ${chalk.cyan(`$ ${getPkgName()} dns ls zeit.rocks --next 1584722256178`)}
-`);
-};
+import {
+  addSubcommand,
+  dnsCommand,
+  importSubcommand,
+  listSubcommand,
+  removeSubcommand,
+} from './command';
+import { type Command, help } from '../help';
+import { getFlagsSpecification } from '../../util/get-flags-specification';
+import output from '../../output-manager';
+import { DnsTelemetryClient } from '../../util/telemetry/commands/dns';
+import type Client from '../../util/client';
+import { getCommandAliases } from '..';
 
 const COMMAND_CONFIG = {
-  add: ['add'],
-  import: ['import'],
-  ls: ['ls', 'list'],
-  rm: ['rm', 'remove'],
+  add: getCommandAliases(addSubcommand),
+  import: getCommandAliases(importSubcommand),
+  ls: getCommandAliases(listSubcommand),
+  rm: getCommandAliases(removeSubcommand),
 };
 
-export default async function main(client: Client) {
-  let argv;
+export default async function dns(client: Client) {
+  const { telemetryEventStore } = client;
 
+  let parsedArgs;
+  const flagsSpecification = getFlagsSpecification(dnsCommand.options);
   try {
-    argv = getArgs(client.argv.slice(2), {
-      '--next': Number,
-      '-N': '--next',
-      '--limit': Number,
+    parsedArgs = parseArguments(client.argv.slice(2), flagsSpecification, {
+      permissive: true,
     });
-  } catch (error) {
-    handleError(error);
+  } catch (err) {
+    printError(err);
     return 1;
   }
 
-  if (argv['--help']) {
-    help();
+  const telemetry = new DnsTelemetryClient({
+    opts: {
+      store: telemetryEventStore,
+    },
+  });
+
+  const { subcommand, subcommandOriginal, args } = getSubcommand(
+    parsedArgs.args.slice(1),
+    COMMAND_CONFIG
+  );
+
+  const needHelp = parsedArgs.flags['--help'];
+
+  if (!subcommand && needHelp) {
+    telemetry.trackCliFlagHelp('dns', subcommand);
+    output.print(help(dnsCommand, { columns: client.stderr.columns }));
     return 2;
   }
 
-  const { subcommand, args } = getSubcommand(argv._.slice(1), COMMAND_CONFIG);
+  function printHelp(command: Command) {
+    output.print(
+      help(command, { parent: dnsCommand, columns: client.stderr.columns })
+    );
+  }
+
   switch (subcommand) {
     case 'add':
-      return add(client, argv, args);
+      if (needHelp) {
+        telemetry.trackCliFlagHelp('dns', subcommandOriginal);
+        printHelp(addSubcommand);
+        return 2;
+      }
+      telemetry.trackCliSubcommandAdd(subcommandOriginal);
+      return add(client, args);
     case 'import':
-      return importZone(client, argv, args);
+      if (needHelp) {
+        telemetry.trackCliFlagHelp('dns', subcommandOriginal);
+        printHelp(importSubcommand);
+        return 2;
+      }
+      telemetry.trackCliSubcommandImport(subcommandOriginal);
+      return importZone(client, args);
     case 'rm':
-      return rm(client, argv, args);
+      if (needHelp) {
+        telemetry.trackCliFlagHelp('dns', subcommandOriginal);
+        printHelp(removeSubcommand);
+        return 2;
+      }
+      telemetry.trackCliSubcommandRemove(subcommandOriginal);
+      return rm(client, args);
     default:
-      return ls(client, argv, args);
+      if (needHelp) {
+        telemetry.trackCliFlagHelp('dns', subcommandOriginal);
+        printHelp(listSubcommand);
+        return 2;
+      }
+      telemetry.trackCliSubcommandList(subcommandOriginal);
+      return ls(client, args);
   }
 }
