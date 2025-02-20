@@ -1,13 +1,13 @@
 {
   "private": true,
-  "name": "webapp",
+  "name": "25-mono-repo-packages-webapp",
   "version": "0.0.1",
-  "engines": {
-    "node": "14.x"
-  },
   "dependencies": {
-    "next": "9.3.4",
+    "next": "15.2.0-canary.33",
     "react": "^16.8.6",
     "react-dom": "^16.8.6"
+  },
+  "resolutions": {
+    "@babel/compat-data": "7.21.4"
   }
 }

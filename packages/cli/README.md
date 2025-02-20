@@ -6,13 +6,11 @@
   <p align="center">Develop. Preview. Ship.</p>
 </p>
 
-[![Join the community on GitHub Discussions](https://badgen.net/badge/join%20the%20discussion/on%20github/black?icon=github)](https://github.com/vercel/vercel/discussions)
+[Join the Vercel Community](https://vercel.community/)
 
 ## Usage
 
-Vercel is the platform for frontend developers, providing the speed and reliability innovators need to create at the moment of inspiration.
-
-We enable teams to iterate quickly and develop, preview, and ship delightful user experiences. Vercel has zero-configuration support for 35+ frontend frameworks and integrates with your headless content, commerce, or database of choice.
+Vercel's frontend cloud gives developers frameworks, workflows, and infrastructure to build a faster, more personalized web.
 
 To install the latest version of Vercel CLI, run this command:
 
@@ -41,8 +39,8 @@ To develop Vercel CLI, first check out the source code, install dependencies, an
 ```bash
 git clone https://github.com/vercel/vercel.git
 cd vercel
-yarn
-yarn build
+pnpm install
+pnpm build
 ```
 
 At this point you can make modifications to the CLI source code and test them out locally. The CLI source code is located in the `packages/cli` directory.
@@ -51,15 +49,15 @@ At this point you can make modifications to the CLI source code and test them ou
 cd packages/cli
 ```
 
-### `yarn dev <cli-commands...>`
+### `pnpm vercel <cli-commands...>`
 
-From within the `packages/cli` directory, you can use the "dev" script to quickly execute Vercel CLI from its TypeScript source code directly (without having to manually compile first). For example:
+From within the `packages/cli` directory, you can use the "vercel" script to quickly execute Vercel CLI from its TypeScript source code directly (without having to manually compile first). For example:
 
 ```bash
-yarn dev deploy
-yarn dev whoami
-yarn dev login
-yarn dev switch --debug
+pnpm vercel deploy
+pnpm vercel whoami
+pnpm vercel login
+pnpm vercel switch --debug
 ```
 
 When you are satisfied with your changes, make a commit and create a pull request!

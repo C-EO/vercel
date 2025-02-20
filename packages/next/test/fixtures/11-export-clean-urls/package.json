@@ -1,9 +1,9 @@
 {
   "scripts": {
-    "vercel-build": "next build && next export"
+    "vercel-build": "next build"
   },
   "dependencies": {
-    "next": "canary",
+    "next": "15.2.0-canary.33",
     "react": "latest",
     "react-dom": "latest"
   }

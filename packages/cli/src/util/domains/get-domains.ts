@@ -1,5 +1,5 @@
-import { Domain, PaginationOptions } from '../../types';
-import Client from '../client';
+import type { Domain, PaginationOptions } from '@vercel-internals/types';
+import type Client from '../client';
 
 type Response = {
   domains: Domain[];

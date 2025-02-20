@@ -1,8 +1,9 @@
 import chalk from 'chalk';
 import retry from 'async-retry';
 import { DomainAlreadyExists, InvalidDomain, isAPIError } from '../errors-ts';
-import { Domain } from '../../types';
-import Client from '../client';
+import type { Domain } from '@vercel-internals/types';
+import type Client from '../client';
+import output from '../../output-manager';
 
 type Response = {
   domain: Domain;
@@ -13,9 +14,7 @@ export default async function addDomain(
   domain: string,
   contextName: string
 ) {
-  client.output.spinner(
-    `Adding domain ${domain} under ${chalk.bold(contextName)}`
-  );
+  output.spinner(`Adding domain ${domain} under ${chalk.bold(contextName)}`);
   const addedDomain = await performAddRequest(client, domain);
   return addedDomain;
 }

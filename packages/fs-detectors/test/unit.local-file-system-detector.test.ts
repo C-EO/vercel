@@ -1,11 +1,12 @@
 import os from 'node:os';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import net from 'node:net';
 import { LocalFileSystemDetector, DetectorFilesystem } from '../src';
 
 const tmpdir = path.join(os.tmpdir(), 'local-file-system-test');
 
-const dirs = ['', 'a', 'a/b']; // root, single-nested, double-nested
+const dirs = ['', 'a', `a${path.sep}b`]; // root, single-nested, double-nested
 const files = ['foo', 'bar'];
 const filePaths = dirs.flatMap(dir => files.map(file => path.join(dir, file)));
 
@@ -63,16 +64,36 @@ describe('LocalFileSystemDetector', () => {
     const readdirResults = await Promise.all(
       dirs.map(dir => localFileSystem.readdir(dir))
     );
-    const expectedPaths = [
-      ...dirs.map(dir => path.join(tmpdir, dir)),
-      ...filePaths.map(filePath => path.join(tmpdir, filePath)),
-    ]
-      .sort()
-      .slice(1); // drop the first path since its the root
+    const expectedPaths = [...dirs, ...filePaths].sort().slice(1); // drop the first path since its the root
     const actualPaths = readdirResults
       .flatMap(result => result.map(stat => stat.path))
       .sort();
     expect(actualPaths).toEqual(expectedPaths);
+  });
+
+  it('should skip entry if socket', async () => {
+    // Windows does not support Unix domain sockets
+    if (process.platform === 'win32') {
+      return;
+    }
+
+    const socketdir = path.join(os.tmpdir(), 'socket-dir');
+    const socketFileSystem = new LocalFileSystemDetector(socketdir);
+    const server = net.createServer();
+
+    try {
+      fs.mkdir(socketdir, { recursive: true });
+      await new Promise<void>(resolve => {
+        server.listen(path.join(socketdir, 'socket'), () => resolve());
+      });
+      const readdirResults = await socketFileSystem.readdir(socketdir);
+      expect(readdirResults).toEqual([]);
+    } finally {
+      await fs.rm(socketdir, { recursive: true, force: true });
+      await new Promise<void>(resolve => {
+        server.close(() => resolve());
+      });
+    }
   });
 
   it('should call chdir correctly', async () => {

@@ -1,5 +1,5 @@
-import { Team } from '../../types';
-import Client from '../client';
+import type { Team } from '@vercel-internals/types';
+import type Client from '../client';
 
 export default async function patchTeam(
   client: Client,

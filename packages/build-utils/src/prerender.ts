@@ -1,4 +1,4 @@
-import { File } from './types';
+import type { File, HasField, Chain } from './types';
 import { Lambda } from './lambda';
 
 interface PrerenderOptions {
@@ -8,8 +8,14 @@ interface PrerenderOptions {
   group?: number;
   bypassToken?: string | null /* optional to be non-breaking change */;
   allowQuery?: string[];
+  allowHeader?: string[];
   initialHeaders?: Record<string, string>;
   initialStatus?: number;
+  passQuery?: boolean;
+  sourcePath?: string;
+  experimentalBypassFor?: HasField;
+  experimentalStreamingLambdaPath?: string;
+  chain?: Chain;
 }
 
 export class Prerender {
@@ -20,8 +26,14 @@ export class Prerender {
   public group?: number;
   public bypassToken: string | null;
   public allowQuery?: string[];
+  public allowHeader?: string[];
   public initialHeaders?: Record<string, string>;
   public initialStatus?: number;
+  public passQuery?: boolean;
+  public sourcePath?: string;
+  public experimentalBypassFor?: HasField;
+  public experimentalStreamingLambdaPath?: string;
+  public chain?: Chain;
 
   constructor({
     expiration,
@@ -30,11 +42,18 @@ export class Prerender {
     group,
     bypassToken,
     allowQuery,
+    allowHeader,
     initialHeaders,
     initialStatus,
+    passQuery,
+    sourcePath,
+    experimentalBypassFor,
+    experimentalStreamingLambdaPath,
+    chain,
   }: PrerenderOptions) {
     this.type = 'Prerender';
     this.expiration = expiration;
+    this.sourcePath = sourcePath;
 
     this.lambda = lambda;
     if (this.lambda) {
@@ -52,6 +71,17 @@ export class Prerender {
     }
     this.group = group;
 
+    if (passQuery === true) {
+      this.passQuery = true;
+    } else if (
+      typeof passQuery !== 'boolean' &&
+      typeof passQuery !== 'undefined'
+    ) {
+      throw new Error(
+        `The \`passQuery\` argument for \`Prerender\` must be a boolean.`
+      );
+    }
+
     if (bypassToken == null) {
       this.bypassToken = null;
     } else if (typeof bypassToken === 'string') {
@@ -66,6 +96,26 @@ export class Prerender {
       throw new Error(
         'The `bypassToken` argument for `Prerender` must be a `string`.'
       );
+    }
+
+    if (experimentalBypassFor !== undefined) {
+      if (
+        !Array.isArray(experimentalBypassFor) ||
+        experimentalBypassFor.some(
+          field =>
+            typeof field !== 'object' ||
+            // host doesn't need a key
+            (field.type !== 'host' && typeof field.key !== 'string') ||
+            typeof field.type !== 'string' ||
+            (field.value !== undefined && typeof field.value !== 'string')
+        )
+      ) {
+        throw new Error(
+          'The `experimentalBypassFor` argument for `Prerender` must be Array of objects with fields `type`, `key` and optionally `value`.'
+        );
+      }
+
+      this.experimentalBypassFor = experimentalBypassFor;
     }
 
     if (typeof fallback === 'undefined') {
@@ -111,6 +161,57 @@ export class Prerender {
         );
       }
       this.allowQuery = allowQuery;
+    }
+
+    if (allowHeader !== undefined) {
+      if (!Array.isArray(allowHeader)) {
+        throw new Error(
+          'The `allowHeader` argument for `Prerender` must be Array.'
+        );
+      }
+      if (!allowHeader.every(q => typeof q === 'string')) {
+        throw new Error(
+          'The `allowHeader` argument for `Prerender` must be Array of strings.'
+        );
+      }
+      this.allowHeader = allowHeader;
+    }
+
+    if (experimentalStreamingLambdaPath !== undefined) {
+      if (typeof experimentalStreamingLambdaPath !== 'string') {
+        throw new Error(
+          'The `experimentalStreamingLambdaPath` argument for `Prerender` must be a string.'
+        );
+      }
+      this.experimentalStreamingLambdaPath = experimentalStreamingLambdaPath;
+    }
+
+    if (chain !== undefined) {
+      if (typeof chain !== 'object') {
+        throw new Error(
+          'The `chain` argument for `Prerender` must be an object.'
+        );
+      }
+
+      if (
+        !chain.headers ||
+        typeof chain.headers !== 'object' ||
+        Object.entries(chain.headers).some(
+          ([key, value]) => typeof key !== 'string' || typeof value !== 'string'
+        )
+      ) {
+        throw new Error(
+          `The \`chain.headers\` argument for \`Prerender\` must be an object with string key/values`
+        );
+      }
+
+      if (!chain.outputPath || typeof chain.outputPath !== 'string') {
+        throw new Error(
+          'The `chain.outputPath` argument for `Prerender` must be a string.'
+        );
+      }
+
+      this.chain = chain;
     }
   }
 }

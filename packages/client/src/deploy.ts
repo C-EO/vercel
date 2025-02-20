@@ -1,4 +1,4 @@
-import { DeploymentFile } from './utils/hashes';
+import { FilesMap } from './utils/hashes';
 import { generateQueryString } from './utils/query-string';
 import { isReady, isAliasAssigned } from './utils/ready-state';
 import { checkDeploymentStatus } from './check-deployment-status';
@@ -16,7 +16,7 @@ import {
 } from './types';
 
 async function* postDeployment(
-  files: Map<string, DeploymentFile>,
+  files: FilesMap,
   clientOptions: VercelClientOptions,
   deploymentOptions: DeploymentOptions
 ): AsyncIterableIterator<{
@@ -27,7 +27,23 @@ async function* postDeployment(
 }> {
   const debug = createDebug(clientOptions.debug);
   const preparedFiles = prepareFiles(files, clientOptions);
-  const apiDeployments = getApiDeploymentsUrl(deploymentOptions);
+  const apiDeployments = getApiDeploymentsUrl();
+
+  if (deploymentOptions?.builds && !deploymentOptions.functions) {
+    clientOptions.skipAutoDetectionConfirmation = true;
+  }
+
+  // Preview deployments are the default - no need to set `target`
+  if (deploymentOptions.target === 'preview') {
+    deploymentOptions.target = undefined;
+  }
+
+  // "production" environment need to use `target`,
+  // otherwise use `customEnvironmentSlugOrId` for a Custom Environment
+  if (deploymentOptions.target && deploymentOptions.target !== 'production') {
+    deploymentOptions.customEnvironmentSlugOrId = deploymentOptions.target;
+    deploymentOptions.target = undefined;
+  }
 
   debug('Sending deployment creation API request');
   try {
@@ -46,10 +62,16 @@ async function* postDeployment(
         }),
         apiUrl: clientOptions.apiUrl,
         userAgent: clientOptions.userAgent,
+        agent: clientOptions.agent,
       }
     );
 
-    const deployment = await response.json();
+    let deployment = undefined;
+    try {
+      deployment = await response.json();
+    } catch (error) {
+      throw new Error('Invalid JSON response');
+    }
 
     if (clientOptions.debug) {
       // Wrapped because there is no need to
@@ -90,7 +112,7 @@ async function* postDeployment(
 }
 
 function getDefaultName(
-  files: Map<string, DeploymentFile>,
+  files: FilesMap,
   clientOptions: VercelClientOptions
 ): string {
   const debug = createDebug(clientOptions.debug);
@@ -109,7 +131,7 @@ function getDefaultName(
 }
 
 export async function* deploy(
-  files: Map<string, DeploymentFile>,
+  files: FilesMap,
   clientOptions: VercelClientOptions,
   deploymentOptions: DeploymentOptions
 ): AsyncIterableIterator<{ type: string; payload: any }> {

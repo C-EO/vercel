@@ -1,7 +1,6 @@
 {
-  "name": "TODO",
-  "description": "TODO",
-  "version": "0.0.1",
+  "name": "sapper",
+  "private": true,
   "scripts": {
     "start": "sapper dev",
     "dev": "sapper dev --port $PORT",

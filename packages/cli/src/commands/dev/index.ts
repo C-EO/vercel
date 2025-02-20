@@ -1,64 +1,40 @@
 import path from 'path';
 import chalk from 'chalk';
-import { PackageJson } from '@vercel/build-utils';
+import type { PackageJson } from '@vercel/build-utils';
 
-import getArgs from '../../util/get-args';
+import { parseArguments } from '../../util/get-args';
 import getSubcommand from '../../util/get-subcommand';
-import Client from '../../util/client';
+import type Client from '../../util/client';
 import { NowError } from '../../util/now-error';
-import handleError from '../../util/handle-error';
-import logo from '../../util/output/logo';
+import { printError } from '../../util/error';
 import cmd from '../../util/output/cmd';
 import highlight from '../../util/output/highlight';
 import dev from './dev';
 import readConfig from '../../util/config/read-config';
 import readJSONFile from '../../util/read-json-file';
-import { getPkgName, getCommandName } from '../../util/pkg-name';
+import { packageName, getCommandName } from '../../util/pkg-name';
 import { CantParseJSONFile } from '../../util/errors-ts';
 import { isErrnoException } from '@vercel/error-utils';
+import { help } from '../help';
+import { devCommand } from './command';
+import { getFlagsSpecification } from '../../util/get-flags-specification';
+import output from '../../output-manager';
+import { DevTelemetryClient } from '../../util/telemetry/commands/dev';
 
 const COMMAND_CONFIG = {
   dev: ['dev'],
 };
 
-const help = () => {
-  console.log(`
-  ${chalk.bold(`${logo} ${getPkgName()} dev`)} [options] <dir>
-
-  Starts the \`${getPkgName()} dev\` server.
-
-  ${chalk.dim('Options:')}
-
-    -h, --help             Output usage information
-    -d, --debug            Debug mode [off]
-    -l, --listen  [uri]    Specify a URI endpoint on which to listen [0.0.0.0:3000]
-    -t, --token   [token]  Specify an Authorization Token
-    -y, --yes              Skip questions when setting up new project using default scope and settings
-
-  ${chalk.dim('Examples:')}
-
-  ${chalk.gray('–')} Start the \`${getPkgName()} dev\` server on port 8080
-
-      ${chalk.cyan(`$ ${getPkgName()} dev --listen 8080`)}
-
-  ${chalk.gray(
-    '–'
-  )} Make the \`vercel dev\` server bind to localhost on port 5000
-
-      ${chalk.cyan(`$ ${getPkgName()} dev --listen 127.0.0.1:5000`)}
-  `);
-};
-
 export default async function main(client: Client) {
   if (process.env.__VERCEL_DEV_RUNNING) {
-    client.output.error(
+    output.error(
       `${cmd(
-        `${getPkgName()} dev`
+        `${packageName} dev`
       )} must not recursively invoke itself. Check the Development Command in the Project Settings or the ${cmd(
         'dev'
       )} script in ${cmd('package.json')}`
     );
-    client.output.error(
+    output.error(
       `Learn More: https://vercel.link/recursive-invocation-of-commands`
     );
     return 1;
@@ -66,45 +42,52 @@ export default async function main(client: Client) {
     process.env.__VERCEL_DEV_RUNNING = '1';
   }
 
-  let argv;
-  let args;
-  const { output } = client;
+  const { telemetryEventStore } = client;
+  const telemetry = new DevTelemetryClient({
+    opts: {
+      store: telemetryEventStore,
+    },
+  });
 
+  let parsedArgs = null;
+
+  const flagsSpecification = getFlagsSpecification(devCommand.options);
+
+  // Parse CLI args
   try {
-    argv = getArgs(client.argv.slice(2), {
-      '--listen': String,
-      '-l': '--listen',
-      '--yes': Boolean,
-      '-y': '--yes',
-
-      // Deprecated
-      '--port': Number,
-      '-p': '--port',
-      '--confirm': Boolean,
-      '-c': '--confirm',
-    });
-    args = getSubcommand(argv._.slice(1), COMMAND_CONFIG).args;
-
-    if ('--confirm' in argv) {
-      output.warn('`--confirm` is deprecated, please use `--yes` instead');
-      argv['--yes'] = argv['--confirm'];
-    }
-
-    if ('--port' in argv) {
-      output.warn('`--port` is deprecated, please use `--listen` instead');
-      argv['--listen'] = String(argv['--port']);
-    }
-  } catch (err) {
-    handleError(err);
+    parsedArgs = parseArguments(client.argv.slice(2), flagsSpecification);
+  } catch (error) {
+    printError(error);
     return 1;
   }
 
-  if (argv['--help']) {
-    help();
+  telemetry.trackCliFlagConfirm(parsedArgs.flags['--confirm']);
+  telemetry.trackCliFlagYes(parsedArgs.flags['--yes']);
+  telemetry.trackCliOptionPort(parsedArgs.flags['--port']);
+  telemetry.trackCliOptionListen(parsedArgs.flags['--listen']);
+
+  if (parsedArgs.flags['--help']) {
+    telemetry.trackCliFlagHelp('dev');
+    output.print(help(devCommand, { columns: client.stderr.columns }));
     return 2;
   }
 
-  const [dir = '.'] = args;
+  const args = getSubcommand(parsedArgs.args.slice(1), COMMAND_CONFIG).args;
+
+  if ('--confirm' in parsedArgs.flags) {
+    output.warn('`--confirm` is deprecated, please use `--yes` instead');
+    parsedArgs.flags['--yes'] = parsedArgs.flags['--confirm'];
+  }
+
+  if ('--port' in parsedArgs.flags) {
+    output.warn('`--port` is deprecated, please use `--listen` instead');
+    parsedArgs.flags['--listen'] = parsedArgs.flags['--port'];
+  }
+
+  const [passedDir] = args;
+  telemetry.trackCliArgumentDir(passedDir);
+
+  const dir = passedDir || process.cwd();
 
   const vercelConfig = await readConfig(dir);
 
@@ -118,32 +101,32 @@ export default async function main(client: Client) {
     const pkg = await readJSONFile<PackageJson>(path.join(dir, 'package.json'));
 
     if (pkg instanceof CantParseJSONFile) {
-      client.output.error('Could not parse package.json');
+      output.error(pkg.message);
       return 1;
     }
 
     if (/\b(now|vercel)\b\W+\bdev\b/.test(pkg?.scripts?.dev || '')) {
-      client.output.error(
+      output.error(
         `${cmd(
-          `${getPkgName()} dev`
+          `${packageName} dev`
         )} must not recursively invoke itself. Check the Development Command in the Project Settings or the ${cmd(
           'dev'
         )} script in ${cmd('package.json')}`
       );
-      client.output.error(
+      output.error(
         `Learn More: https://vercel.link/recursive-invocation-of-commands`
       );
       return 1;
     }
   }
 
-  if (argv._.length > 2) {
+  if (parsedArgs.args.length > 2) {
     output.error(`${getCommandName(`dev [dir]`)} accepts at most one argument`);
     return 1;
   }
 
   try {
-    return await dev(client, argv, args);
+    return await dev(client, parsedArgs.flags, args);
   } catch (err) {
     if (isErrnoException(err) && err.code === 'ENOTFOUND') {
       // Error message will look like the following:
