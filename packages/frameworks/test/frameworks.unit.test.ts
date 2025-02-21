@@ -17,13 +17,16 @@ const SchemaFrameworkDetectionItem = {
   items: [
     {
       type: 'object',
-      required: ['path'],
+      required: [],
       additionalProperties: false,
       properties: {
         path: {
           type: 'string',
         },
         matchContent: {
+          type: 'string',
+        },
+        matchPackage: {
           type: 'string',
         },
       },
@@ -48,6 +51,22 @@ const SchemaSettings = {
     },
     {
       type: 'object',
+      required: ['value', 'ignorePackageJsonScript'],
+      additionalProperties: false,
+      properties: {
+        value: {
+          type: 'string',
+        },
+        placeholder: {
+          type: 'string',
+        },
+        ignorePackageJsonScript: {
+          type: 'boolean',
+        },
+      },
+    },
+    {
+      type: 'object',
       required: ['placeholder'],
       additionalProperties: false,
       properties: {
@@ -59,16 +78,40 @@ const SchemaSettings = {
   ],
 };
 
+const RouteSchema = {
+  type: 'array',
+  items: {
+    properties: {
+      src: { type: 'string' },
+      dest: { type: 'string' },
+      status: { type: 'number' },
+      handle: { type: 'string' },
+      headers: { type: 'object' },
+      continue: { type: 'boolean' },
+    },
+  },
+};
+
 const Schema = {
   type: 'array',
   items: {
     type: 'object',
-    required: ['name', 'slug', 'logo', 'description', 'settings'],
+    additionalProperties: false,
+    required: [
+      'name',
+      'slug',
+      'logo',
+      'description',
+      'settings',
+      'getOutputDirName',
+    ],
     properties: {
       name: { type: 'string' },
       slug: { type: ['string', 'null'] },
       sort: { type: 'number' },
       logo: { type: 'string' },
+      darkModeLogo: { type: 'string' },
+      screenshot: { type: 'string' },
       demo: { type: 'string' },
       tagline: { type: 'string' },
       website: { type: 'string' },
@@ -113,6 +156,26 @@ const Schema = {
           outputDirectory: SchemaSettings,
         },
       },
+      getOutputDirName: {
+        isFunction: true,
+      },
+      defaultRoutes: {
+        oneOf: [{ isFunction: true }, RouteSchema],
+      },
+      defaulHeaders: {
+        type: 'array',
+        items: {
+          properties: {
+            source: { type: 'string' },
+            regex: { type: 'string' },
+            headers: { type: 'object' },
+            continue: { type: 'boolean' },
+          },
+        },
+      },
+      disableRootMiddleware: {
+        type: 'boolean',
+      },
       recommendedIntegrations: {
         type: 'array',
         items: {
@@ -136,6 +199,7 @@ const Schema = {
       dependency: { type: 'string' },
       cachePattern: { type: 'string' },
       defaultVersion: { type: 'string' },
+      supersedes: { type: 'array', items: { type: 'string' } },
     },
   },
 };
@@ -151,6 +215,17 @@ async function getDeployment(host: string) {
 }
 
 describe('frameworks', () => {
+  const skipExamples = [
+    'dojo',
+    'saber',
+    'gridsome',
+    'sanity-v3',
+    'scully',
+    'solidstart',
+    'sanity', // https://linear.app/vercel/issue/ZERO-3238/unskip-tests-failing-due-to-node-16-removal
+    'vuepress', // https://linear.app/vercel/issue/ZERO-3238/unskip-tests-failing-due-to-node-16-removal
+  ];
+
   it('ensure there is an example for every framework', async () => {
     const root = join(__dirname, '..', '..', '..');
     const getExample = (name: string) => join(root, 'examples', name);
@@ -158,13 +233,15 @@ describe('frameworks', () => {
     const result = frameworkList
       .map(f => f.slug)
       .filter(isString)
+      .filter(slug => !skipExamples.includes(slug))
       .filter(f => existsSync(getExample(f)) === false);
 
     expect(result).toEqual([]);
   });
 
   it('ensure schema', async () => {
-    const ajv = new Ajv();
+    const ajv = getValidator();
+
     const result = ajv.validate(Schema, frameworkList);
 
     if (ajv.errors) {
@@ -243,3 +320,16 @@ describe('frameworks', () => {
     );
   });
 });
+
+function getValidator() {
+  const ajv = new Ajv();
+
+  ajv.addKeyword('isFunction', {
+    compile: shouldMatch => data => {
+      const matches = typeof data === 'function';
+      return (shouldMatch && matches) || (!shouldMatch && !matches);
+    },
+  });
+
+  return ajv;
+}

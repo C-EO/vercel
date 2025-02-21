@@ -1,4 +1,4 @@
-import Client from '../client';
+import type Client from '../client';
 
 export default async function deleteDNSRecordById(
   client: Client,
@@ -8,7 +8,7 @@ export default async function deleteDNSRecordById(
   return client.fetch(
     `/v3/domains/${encodeURIComponent(domain)}/records/${recordId}`,
     {
-      method: 'DELETE'
+      method: 'DELETE',
     }
   );
 }

@@ -1,12 +1,11 @@
-import { DeploymentFile } from './hashes';
-import { FetchOptions } from '@zeit/fetch';
-import { nodeFetch, zeitFetch } from './fetch';
-import { join, sep, relative } from 'path';
+import { FilesMap } from './hashes';
+import nodeFetch, { RequestInit } from 'node-fetch';
+import { join, sep, relative, basename } from 'path';
 import { URL } from 'url';
 import ignore from 'ignore';
 import { pkgVersion } from '../pkg';
 import { NowBuildError } from '@vercel/build-utils';
-import { VercelClientOptions, DeploymentOptions, VercelConfig } from '../types';
+import { VercelClientOptions, VercelConfig } from '../types';
 import { Sema } from 'async-sema';
 import { readFile } from 'fs-extra';
 import readdir from './readdir-recursive';
@@ -43,16 +42,10 @@ const EVENTS_ARRAY = [
   'checks-conclusion-canceled',
 ] as const;
 
-export type DeploymentEventType = typeof EVENTS_ARRAY[number];
+export type DeploymentEventType = (typeof EVENTS_ARRAY)[number];
 export const EVENTS = new Set(EVENTS_ARRAY);
 
-export function getApiDeploymentsUrl(
-  metadata?: Pick<DeploymentOptions, 'builds' | 'functions'>
-) {
-  if (metadata && metadata.builds && !metadata.functions) {
-    return '/v10/deployments';
-  }
-
+export function getApiDeploymentsUrl() {
   return '/v13/deployments';
 }
 
@@ -88,12 +81,13 @@ export async function buildFileTree(
   {
     isDirectory,
     prebuilt,
-  }: Pick<VercelClientOptions, 'isDirectory' | 'prebuilt'>,
+    vercelOutputDir,
+  }: Pick<VercelClientOptions, 'isDirectory' | 'prebuilt' | 'vercelOutputDir'>,
   debug: Debug
 ): Promise<{ fileList: string[]; ignoreList: string[] }> {
   const ignoreList: string[] = [];
   let fileList: string[];
-  let { ig, ignores } = await getVercelIgnore(path, prebuilt);
+  let { ig, ignores } = await getVercelIgnore(path, prebuilt, vercelOutputDir);
 
   debug(`Found ${ignores.length} rules in .vercelignore`);
   debug('Building file tree...');
@@ -109,6 +103,29 @@ export async function buildFileTree(
       return ignored;
     };
     fileList = await readdir(path, [ignores]);
+
+    if (prebuilt) {
+      // Traverse over the `.vc-config.json` files and include
+      // the files referenced by the "filePathMap" properties
+      const refs = new Set<string>();
+      const vcConfigFilePaths = fileList.filter(
+        file => basename(file) === '.vc-config.json'
+      );
+      await Promise.all(
+        vcConfigFilePaths.map(async p => {
+          const configJson = await readFile(p, 'utf8');
+          const config = JSON.parse(configJson);
+          if (!config.filePathMap) return;
+          for (const v of Object.values(config.filePathMap) as string[]) {
+            refs.add(join(path, v));
+          }
+        })
+      );
+      if (refs.size > 0) {
+        fileList = fileList.concat(Array.from(refs));
+      }
+    }
+
     debug(`Found ${fileList.length} files in the specified directory`);
   } else if (Array.isArray(path)) {
     // Array of file paths
@@ -125,20 +142,29 @@ export async function buildFileTree(
 
 export async function getVercelIgnore(
   cwd: string | string[],
-  prebuilt?: boolean
+  prebuilt?: boolean,
+  vercelOutputDir?: string
 ): Promise<{ ig: Ignore; ignores: string[] }> {
   const ig = ignore();
   let ignores: string[];
 
   if (prebuilt) {
-    const outputDir = '.vercel/output';
+    if (typeof vercelOutputDir !== 'string') {
+      throw new Error(
+        `Missing required \`vercelOutputDir\` parameter when "prebuilt" is true`
+      );
+    }
+    if (typeof cwd !== 'string') {
+      throw new Error(`\`cwd\` must be a "string"`);
+    }
+    const relOutputDir = relative(cwd, vercelOutputDir);
     ignores = ['*'];
-    const parts = outputDir.split('/');
+    const parts = relOutputDir.split(sep);
     parts.forEach((_, i) => {
       const level = parts.slice(0, i + 1).join('/');
       ignores.push(`!${level}`);
     });
-    ignores.push(`!${outputDir}/**`);
+    ignores.push(`!${parts.join('/')}/**`);
     ig.add(ignores.join('\n'));
   } else {
     ignores = [
@@ -160,6 +186,7 @@ export async function getVercelIgnore(
       '.env.local',
       '.env.*.local',
       '.venv',
+      '.yarn/cache',
       'npm-debug.log',
       'config.gypi',
       'node_modules',
@@ -204,7 +231,7 @@ function clearRelative(str: string) {
   return str.replace(/(\n|^)\.\//g, '$1');
 }
 
-interface FetchOpts extends FetchOptions {
+interface FetchOpts extends RequestInit {
   apiUrl?: string;
   method?: string;
   teamId?: string;
@@ -216,8 +243,7 @@ export const fetch = async (
   url: string,
   token: string,
   opts: FetchOpts = {},
-  debugEnabled?: boolean,
-  useNodeFetch?: boolean
+  debugEnabled?: boolean
 ): Promise<any> => {
   semaphore.acquire();
   const debug = createDebug(debugEnabled);
@@ -225,6 +251,12 @@ export const fetch = async (
 
   url = `${opts.apiUrl || 'https://api.vercel.com'}${url}`;
   delete opts.apiUrl;
+
+  const { VERCEL_TEAM_ID } = process.env;
+
+  if (VERCEL_TEAM_ID) {
+    url += `${url.includes('?') ? '&' : '?'}teamId=${VERCEL_TEAM_ID}`;
+  }
 
   if (opts.teamId) {
     const parsedUrl = new URL(url);
@@ -245,9 +277,7 @@ export const fetch = async (
 
   debug(`${opts.method || 'GET'} ${url}`);
   time = Date.now();
-  const res = useNodeFetch
-    ? await nodeFetch(url, opts)
-    : await zeitFetch(url, opts);
+  const res = await nodeFetch(url, opts);
   debug(`DONE in ${Date.now() - time}ms: ${opts.method || 'GET'} ${url}`);
   semaphore.release();
 
@@ -256,15 +286,15 @@ export const fetch = async (
 
 export interface PreparedFile {
   file: string;
-  sha: string;
-  size: number;
+  sha?: string;
+  size?: number;
   mode: number;
 }
 
 const isWin = process.platform.includes('win');
 
 export const prepareFiles = (
-  files: Map<string, DeploymentFile>,
+  files: FilesMap,
   clientOptions: VercelClientOptions
 ): PreparedFile[] => {
   const preparedFiles: PreparedFile[] = [];
@@ -286,9 +316,9 @@ export const prepareFiles = (
 
       preparedFiles.push({
         file: isWin ? fileName.replace(/\\/g, '/') : fileName,
-        size: file.data.byteLength || file.data.length,
+        size: file.data?.byteLength || file.data?.length,
         mode: file.mode,
-        sha,
+        sha: sha || undefined,
       });
     }
   }
