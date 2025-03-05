@@ -1,5 +1,6 @@
 import assert from 'assert';
 import { getPlatformEnv } from '../src';
+import { describe, it } from 'vitest';
 
 describe('Test `getPlatformEnv()`', () => {
   it('should support `VERCEL_` prefix', () => {
@@ -30,8 +31,8 @@ describe('Test `getPlatformEnv()`', () => {
       process.env.NOW_FOO = 'bar';
       process.env.VERCEL_FOO = 'baz';
       getPlatformEnv('FOO');
-    } catch (_err) {
-      err = _err;
+    } catch (_err: unknown) {
+      err = _err as Error;
     } finally {
       delete process.env.NOW_FOO;
       delete process.env.VERCEL_FOO;

@@ -1,8 +1,10 @@
+import type { Agent } from 'http';
 import type {
   Builder,
   BuilderFunctions,
   Images,
   ProjectSettings,
+  Cron,
 } from '@vercel/build-utils';
 import type { Header, Route, Redirect, Rewrite } from '@vercel/routing-utils';
 
@@ -13,7 +15,7 @@ export interface Dictionary<T> {
 }
 
 export const VALID_ARCHIVE_FORMATS = ['tgz'] as const;
-export type ArchiveFormat = typeof VALID_ARCHIVE_FORMATS[number];
+export type ArchiveFormat = (typeof VALID_ARCHIVE_FORMATS)[number];
 
 export interface VercelClientOptions {
   token: string;
@@ -23,13 +25,15 @@ export interface VercelClientOptions {
   apiUrl?: string;
   force?: boolean;
   prebuilt?: boolean;
-  rootDirectory?: string;
+  vercelOutputDir?: string;
+  rootDirectory?: string | null;
   withCache?: boolean;
   userAgent?: string;
   defaultName?: string;
   isDirectory?: boolean;
   skipAutoDetectionConfirmation?: boolean;
   archive?: ArchiveFormat;
+  agent?: Agent;
 }
 
 /** @deprecated Use VercelClientOptions instead. */
@@ -89,6 +93,9 @@ export interface Deployment {
   alias: string[];
   aliasAssigned: boolean;
   aliasError: string | null;
+  expiration?: number;
+  proposedExpiration?: number;
+  undeletedAt?: number;
 }
 
 export interface DeploymentBuild {
@@ -154,6 +161,7 @@ export interface VercelConfig {
   framework?: string | null;
   outputDirectory?: string | null;
   images?: Images;
+  crons?: Cron[];
 }
 
 export interface GitMetadata {
@@ -162,7 +170,7 @@ export interface GitMetadata {
   commitRef?: string | undefined;
   commitSha?: string | undefined;
   dirty?: boolean | undefined;
-  remoteUrl: string;
+  remoteUrl?: string;
 }
 
 /**
@@ -190,4 +198,6 @@ export interface DeploymentOptions {
   meta?: Dictionary<string>;
   projectSettings?: ProjectSettings;
   gitMetadata?: GitMetadata;
+  autoAssignCustomDomains?: boolean;
+  customEnvironmentSlugOrId?: string;
 }

@@ -1,11 +1,11 @@
-import Client from '../client';
-import { stringify } from 'qs';
-import { Org } from '../../types';
+import { URL } from 'url';
+import type Client from '../client';
 import chalk from 'chalk';
 import link from '../output/link';
 import { isAPIError } from '../errors-ts';
-import { Output } from '../output';
-import { Dictionary } from '@vercel/client';
+import type { Dictionary } from '@vercel/client';
+import type { Org } from '@vercel-internals/types';
+import output from '../../output-manager';
 
 export interface RepoInfo {
   url: string;
@@ -19,9 +19,7 @@ export async function disconnectGitProvider(
   org: Org,
   projectId: string
 ) {
-  const fetchUrl = `/v9/projects/${projectId}/link?${stringify({
-    teamId: org.type === 'team' ? org.id : undefined,
-  })}`;
+  const fetchUrl = `/v9/projects/${projectId}/link`;
   return client.fetch(fetchUrl, {
     method: 'DELETE',
     headers: {
@@ -32,14 +30,11 @@ export async function disconnectGitProvider(
 
 export async function connectGitProvider(
   client: Client,
-  org: Org,
   projectId: string,
   type: string,
   repo: string
 ) {
-  const fetchUrl = `/v9/projects/${projectId}/link?${stringify({
-    teamId: org.type === 'team' ? org.id : undefined,
-  })}`;
+  const fetchUrl = `/v9/projects/${projectId}/link`;
   try {
     return await client.fetch(fetchUrl, {
       method: 'POST',
@@ -57,18 +52,18 @@ export async function connectGitProvider(
       apiError &&
       (err.action === 'Install GitHub App' || err.code === 'repo_not_found')
     ) {
-      client.output.error(
+      output.error(
         `Failed to connect ${chalk.cyan(
           repo
         )} to project. Make sure there aren't any typos and that you have access to the repository if it's private.`
       );
     } else if (apiError && err.action === 'Add a Login Connection') {
-      client.output.error(
+      output.error(
         err.message.replace(repo, chalk.cyan(repo)) +
           `\nVisit ${link(err.link)} for more information.`
       );
     } else {
-      client.output.error(
+      output.error(
         `Failed to connect the ${formatProvider(
           type
         )} repository ${repo}.\n${err}`
@@ -91,44 +86,40 @@ export function formatProvider(type: string): string {
   }
 }
 
-export function parseRepoUrl(originUrl: string): RepoInfo | null {
-  const isSSH = originUrl.startsWith('git@');
-  // Matches all characters between (// or @) and (.com or .org)
-  // eslint-disable-next-line prefer-named-capture-group
-  const provider =
-    /(?<=(\/\/|@)).*(?=(\.com|\.org))/.exec(originUrl)?.[0] ||
-    originUrl.replace('www.', '').split('.')[0];
-  if (!provider) {
-    return null;
+function getURL(input: string) {
+  let url: URL | null = null;
+
+  try {
+    url = new URL(input);
+  } catch {}
+
+  if (!url) {
+    // Probably an SSH url, so mangle it into a
+    // format that the URL constructor works with.
+    try {
+      url = new URL(`ssh://${input.replace(':', '/')}`);
+    } catch {}
   }
 
-  let org;
-  let repo;
-
-  if (isSSH) {
-    org = originUrl.split(':')[1].split('/')[0];
-    repo = originUrl.split('/')[1]?.replace('.git', '');
-  } else {
-    // Assume https:// or git://
-    org = originUrl.replace('//', '').split('/')[1];
-    repo = originUrl.replace('//', '').split('/')[2]?.replace('.git', '');
-  }
-
-  if (!org || !repo) {
-    return null;
-  }
-
-  return {
-    url: originUrl,
-    provider,
-    org,
-    repo,
-  };
+  return url;
 }
-export function printRemoteUrls(
-  output: Output,
-  remoteUrls: Dictionary<string>
-) {
+
+export function parseRepoUrl(originUrl: string): RepoInfo | null {
+  const url = getURL(originUrl);
+  if (!url) return null;
+
+  const hostParts = url.hostname.split('.');
+  if (hostParts.length < 2) return null;
+  const provider = hostParts[hostParts.length - 2];
+
+  const pathParts = url.pathname.split('/').filter(Boolean);
+  if (pathParts.length !== 2) return null;
+  const org = pathParts[0];
+  const repo = pathParts[1].replace(/\.git$/, '');
+  return { url: originUrl, provider, org, repo };
+}
+
+export function printRemoteUrls(remoteUrls: Dictionary<string>) {
   for (const [name, url] of Object.entries(remoteUrls)) {
     output.print(`  • ${name}: ${chalk.cyan(url)}\n`);
   }

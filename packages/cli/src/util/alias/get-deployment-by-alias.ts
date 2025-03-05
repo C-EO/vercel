@@ -1,14 +1,13 @@
 import path from 'path';
 import chalk from 'chalk';
-import Client from '../client';
-import { Output } from '../output';
-import { User } from '../../types';
-import { VercelConfig } from '../dev/types';
+import type Client from '../client';
+import type { User } from '@vercel-internals/types';
+import type { VercelConfig } from '../dev/types';
 import getDeploymentsByAppName from '../deploy/get-deployments-by-appname';
-import getDeploymentByIdOrHost from '../deploy/get-deployment-by-id-or-host';
+import getDeployment from '../get-deployment';
+import output from '../../output-manager';
 
 async function getAppLastDeployment(
-  output: Output,
   client: Client,
   appName: string,
   user: User,
@@ -22,7 +21,7 @@ async function getAppLastDeployment(
 
   // Try to fetch deployment details
   if (deploymentItem) {
-    return getDeploymentByIdOrHost(client, contextName, deploymentItem.uid);
+    return await getDeployment(client, contextName, deploymentItem.uid);
   }
 
   return null;
@@ -30,7 +29,6 @@ async function getAppLastDeployment(
 
 export async function getDeploymentForAlias(
   client: Client,
-  output: Output,
   args: string[],
   localConfigPath: string | undefined,
   user: User,
@@ -42,13 +40,11 @@ export async function getDeploymentForAlias(
   // When there are no args at all we try to get the targets from the config
   if (args.length === 2) {
     const [deploymentId] = args;
-    const deployment = await getDeploymentByIdOrHost(
-      client,
-      contextName,
-      deploymentId
-    );
-    output.stopSpinner();
-    return deployment;
+    try {
+      return await getDeployment(client, contextName, deploymentId);
+    } finally {
+      output.stopSpinner();
+    }
   }
 
   const appName =
@@ -59,13 +55,9 @@ export async function getDeploymentForAlias(
     return null;
   }
 
-  const deployment = await getAppLastDeployment(
-    output,
-    client,
-    appName,
-    user,
-    contextName
-  );
-  output.stopSpinner();
-  return deployment;
+  try {
+    return await getAppLastDeployment(client, appName, user, contextName);
+  } finally {
+    output.stopSpinner();
+  }
 }

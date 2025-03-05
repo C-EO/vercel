@@ -1,5 +1,5 @@
 import bytes from 'bytes';
-import { Response } from 'node-fetch';
+import type { Response } from 'node-fetch';
 import { NowBuildError } from '@vercel/build-utils';
 import { NowError } from './now-error';
 import code from './output/code';
@@ -59,7 +59,7 @@ export class TeamDeleted extends NowError<'TEAM_DELETED', {}> {
   constructor() {
     super({
       code: 'TEAM_DELETED',
-      message: `Your team was deleted. You can switch to a different one using ${getCommandName(
+      message: `Your team was deleted or you were removed from the team. You can switch to a different one using ${getCommandName(
         `switch`
       )}.`,
       meta: {},
@@ -668,13 +668,14 @@ export class CertMissing extends NowError<'ALIAS_IN_USE', { domain: string }> {
 
 export class CantParseJSONFile extends NowError<
   'CANT_PARSE_JSON_FILE',
-  { file: string }
+  { file: string; parseErrorLocation: string }
 > {
-  constructor(file: string) {
+  constructor(file: string, parseErrorLocation: string) {
+    const message = `Can't parse json file ${file}: ${parseErrorLocation}`;
     super({
       code: 'CANT_PARSE_JSON_FILE',
-      meta: { file },
-      message: `Can't parse json file`,
+      meta: { file, parseErrorLocation },
+      message,
     });
   }
 }
@@ -1076,6 +1077,50 @@ export class BuildError extends NowError<'BUILD_ERROR', {}> {
       code: 'BUILD_ERROR',
       meta,
       message,
+    });
+  }
+}
+
+interface SchemaValidationFailedMeta {
+  message: string;
+  keyword: string;
+  dataPath: string;
+  params: object;
+}
+
+export class SchemaValidationFailed extends NowError<
+  'SCHEMA_VALIDATION_FAILED',
+  SchemaValidationFailedMeta
+> {
+  constructor(
+    message: string,
+    keyword: string,
+    dataPath: string,
+    params: object
+  ) {
+    super({
+      code: 'SCHEMA_VALIDATION_FAILED',
+      meta: { message, keyword, dataPath, params },
+      message: `Schema verification failed`,
+    });
+  }
+}
+
+interface InvalidLocalConfigMeta {
+  value: string[];
+}
+
+export class InvalidLocalConfig extends NowError<
+  'INVALID_LOCAL_CONFIG',
+  InvalidLocalConfigMeta
+> {
+  constructor(value: string[]) {
+    super({
+      code: 'INVALID_LOCAL_CONFIG',
+      meta: { value },
+      message: `Invalid local config parameter [${value
+        .map(localConfig => `"${localConfig}"`)
+        .join(', ')}]. A string was expected.`,
     });
   }
 }

@@ -28,7 +28,7 @@ Official Runtimes are published to [the npm registry](https://npmjs.com) as a pa
 > **Note:** The `use` property in the `builds` array will work with any [npm
 > install argument](https://docs.npmjs.com/cli/install) such as a git repo URL,
 > which is useful for testing your Runtime. Alternatively, the `functions` property
-> requires that you specify a specifc tag published to npm, for stability purposes.
+> requires that you specify a specific tag published to npm, for stability purposes.
 
 See the [Runtimes Documentation](https://vercel.com/docs/runtimes) to view example usage.
 
@@ -79,18 +79,23 @@ project. An example use-case is that `@vercel/node` uses this function to cache
 the `node_modules` directory, making it faster to install npm dependencies for
 future builds.
 
+> Note: Only files within the repo root directory can be cached.
+
 **Example:**
 
 ```typescript
-import { PrepareCacheOptions } from '@vercel/build-utils';
+import { relative } from 'path';
+import { glob, PrepareCache } from '@vercel/build-utils';
 
-export async function prepareCache(options: PrepareCacheOptions) {
+export const prepareCache: PrepareCache = async ({
+  workPath,
+  repoRootPath,
+}) => {
   // Create a mapping of file names and `File` object instances to cache here…
-
-  return {
-    'path-to-file': File,
-  };
-}
+  const rootDirectory = relative(repoRootPath, workPath);
+  const cache = await glob(`${rootDirectory}/some/dir/**`, repoRootPath);
+  return cache;
+};
 ```
 
 ### `shouldServe()`
@@ -173,7 +178,7 @@ export async function startDevServer(options: StartDevServerOptions) {
 
 ### Execution Context
 
-- Runtimes are executed in a Linux container that closely matches the Servereless Function runtime environment.
+- Runtimes are executed in a Linux container that closely matches the Serverless Function runtime environment.
 - The Runtime code is executed using Node.js version **12.x**.
 - A brand new sandbox is created for each deployment, for security reasons.
 - The sandbox is cleaned up between executions to ensure no lingering temporary files are shared from build to build.
@@ -380,16 +385,15 @@ This is a [class](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Refere
 
 This is an abstract enumeration type that is implemented by one of the following possible `String` values:
 
+- `nodejs20.x`
 - `nodejs18.x`
-- `nodejs16.x`
-- `nodejs14.x`
-- `go1.x`
 - `java11`
 - `python3.9`
 - `dotnet6`
 - `dotnetcore3.1`
 - `ruby2.7`
 - `provided.al2`
+- `provided.al2023`
 
 ## `@vercel/build-utils` Helper Functions
 

@@ -4,8 +4,10 @@ import {
   relative,
   parse as parsePath,
   sep,
-  basename as pathBasename,
+  basename,
 } from 'path';
+import { Project } from 'ts-morph';
+import { getConfig } from '@vercel/static-config';
 import { readFileSync, lstatSync, existsSync } from 'fs';
 import { intersects, validRange } from 'semver';
 import {
@@ -25,13 +27,13 @@ import {
   FileFsRef,
   PackageJson,
   getEnvForPackageManager,
-  getLambdaOptionsFromFunction,
   readConfigFile,
   isSymbolicLink,
   scanParentDirs,
   NodejsLambda,
   BuildV2,
   PrepareCache,
+  defaultCachePathGlob,
 } from '@vercel/build-utils';
 import { nodeFileTrace } from '@vercel/nft';
 import { getTransformedRoutes, Route } from '@vercel/routing-utils';
@@ -78,15 +80,21 @@ export const build: BuildV2 = async ({
   if (!spawnOpts.env) {
     spawnOpts.env = {};
   }
-  const { cliType, lockfileVersion } = await scanParentDirs(
-    entrypointFsDirname
-  );
+  const {
+    cliType,
+    lockfileVersion,
+    packageJsonPackageManager,
+    turboSupportsCorepackHome,
+  } = await scanParentDirs(entrypointFsDirname, true);
 
   spawnOpts.env = getEnvForPackageManager({
     cliType,
     lockfileVersion,
+    packageJsonPackageManager,
     nodeVersion,
     env: spawnOpts.env || {},
+    turboSupportsCorepackHome,
+    projectCreatedAt: config.projectSettings?.createdAt,
   });
 
   if (typeof installCommand === 'string') {
@@ -101,7 +109,14 @@ export const build: BuildV2 = async ({
       console.log(`Skipping "install" command...`);
     }
   } else {
-    await runNpmInstall(entrypointFsDirname, [], spawnOpts, meta, nodeVersion);
+    await runNpmInstall(
+      entrypointFsDirname,
+      [],
+      spawnOpts,
+      meta,
+      nodeVersion,
+      config.projectSettings?.createdAt
+    );
   }
 
   if (meta.isDev) {
@@ -122,10 +137,20 @@ export const build: BuildV2 = async ({
     });
   } else if (hasScript('vercel-build', pkg)) {
     debug(`Executing "yarn vercel-build"`);
-    await runPackageJsonScript(workPath, 'vercel-build', spawnOpts);
+    await runPackageJsonScript(
+      workPath,
+      'vercel-build',
+      spawnOpts,
+      config.projectSettings?.createdAt
+    );
   } else if (hasScript('build', pkg)) {
     debug(`Executing "yarn build"`);
-    await runPackageJsonScript(workPath, 'build', spawnOpts);
+    await runPackageJsonScript(
+      workPath,
+      'build',
+      spawnOpts,
+      config.projectSettings?.createdAt
+    );
   } else {
     const { devDependencies = {} } = pkg || {};
     const versionRange = devDependencies['@redwoodjs/core'];
@@ -166,7 +191,7 @@ export const build: BuildV2 = async ({
       // No need to transform non-html files
       staticOutputs[fileName] = fileFsRef;
     } else {
-      const fileNameWithoutExtension = pathBasename(fileName, '.html');
+      const fileNameWithoutExtension = basename(fileName, '.html');
 
       const pathWithoutHtmlExtension = join(
         parsedPath.dir,
@@ -188,21 +213,25 @@ export const build: BuildV2 = async ({
   // │   ├── bazinga
   // │   │   ├── bazinga.js
   // │   ├── graphql.js
-
-  const functionFiles = {
-    ...(await glob('*.js', apiDistPath)), // top-level
-    ...(await glob('*/*.js', apiDistPath)), // one-level deep
-  };
+  const functionFiles = await glob('**/*.{js,ts}', apiDistPath);
 
   const sourceCache = new Map<string, string | Buffer | null>();
   const fsCache = new Map<string, File>();
+  const project = new Project();
 
   for (const [funcName, fileFsRef] of Object.entries(functionFiles)) {
     const outputName = join(apiDir, parsePath(funcName).name); // remove `.js` extension
     const absEntrypoint = fileFsRef.fsPath;
     const relativeEntrypoint = relative(workPath, absEntrypoint);
     const awsLambdaHandler = getAWSLambdaHandler(relativeEntrypoint, 'handler');
-    const sourceFile = relativeEntrypoint.replace('/dist/', '/src/');
+    let sourceFile = relativeEntrypoint.replace('/dist/', '/src/');
+
+    // Is this a TS file?
+    const sourceFileBase = basename(sourceFile, '.js');
+    const sourceFileDir = dirname(sourceFile);
+    if (existsSync(join(sourceFileDir, `${sourceFileBase}.ts`))) {
+      sourceFile = join(sourceFileDir, `${sourceFileBase}.ts`);
+    }
 
     const { fileList, esmFileList, warnings } = await nodeFileTrace(
       [absEntrypoint],
@@ -256,17 +285,19 @@ export const build: BuildV2 = async ({
 
     lambdaFiles[relative(workPath, fileFsRef.fsPath)] = fileFsRef;
 
-    const { memory, maxDuration } = await getLambdaOptionsFromFunction({
-      sourceFile,
-      config,
-    });
+    const staticConfig = getConfig(project, sourceFile);
+
+    const regions = staticConfig?.regions;
+    if (regions && !Array.isArray(regions)) {
+      throw new Error('"regions" configuration must be an array');
+    }
 
     const lambda = new NodejsLambda({
+      ...staticConfig,
+      regions,
       files: lambdaFiles,
       handler: relativeEntrypoint,
       runtime: nodeVersion.runtime,
-      memory,
-      maxDuration,
       shouldAddHelpers: false,
       shouldAddSourcemapSupport: false,
       awsLambdaHandler,
@@ -309,5 +340,5 @@ function hasScript(scriptName: string, pkg: PackageJson | null) {
 }
 
 export const prepareCache: PrepareCache = ({ repoRootPath, workPath }) => {
-  return glob('**/node_modules/**', repoRootPath || workPath);
+  return glob(defaultCachePathGlob, repoRootPath || workPath);
 };

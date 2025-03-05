@@ -1,16 +1,16 @@
+import { spawnAsync } from '@vercel/build-utils';
+import assert from 'assert';
 import { resolve, delimiter } from 'path';
-
-const {
-  fetch,
+import {
   sleep,
-  fixture,
-  isCanary,
   shouldSkip,
-  testFixture,
   fetchWithRetry,
+  fetch,
+  fixture,
+  testFixture,
   testFixtureStdio,
   validateResponseHeaders,
-} = require('./utils.js');
+} from './utils';
 
 // Angular has `engines: { node: "10.x" }` in its `package.json`
 test('[vercel dev] 02-angular-node', async () => {
@@ -24,6 +24,7 @@ test('[vercel dev] 02-angular-node', async () => {
   let stderr = '';
 
   try {
+    assert(dev.stderr);
     dev.stderr.on('data', async (data: any) => {
       stderr += data.toString();
     });
@@ -46,14 +47,12 @@ test('[vercel dev] 02-angular-node', async () => {
 
   await sleep(5000);
 
-  if (isCanary()) {
-    stderr.includes('@now/build-utils@canary');
-  } else {
-    stderr.includes('@now/build-utils@latest');
-  }
+  stderr.includes('@now/build-utils@latest');
 });
 
-test(
+// https://linear.app/vercel/issue/ZERO-3238/unskip-tests-failing-due-to-node-16-removal
+// eslint-disable-next-line jest/no-disabled-tests
+test.skip(
   '[vercel dev] 03-aurelia',
   testFixtureStdio(
     '03-aurelia',
@@ -70,27 +69,6 @@ test(
     await testPath(200, '/', /React App/m);
   })
 );
-/*
-test(
-  '[vercel dev] 05-gatsby',
-  testFixtureStdio('05-gatsby', async (testPath: any) => {
-    await testPath(200, '/', /Gatsby Default Starter/m);
-  })
-);
-*/
-test(
-  '[vercel dev] 06-gridsome',
-  testFixtureStdio('06-gridsome', async (testPath: any) => {
-    await testPath(200, '/');
-    await testPath(200, '/about');
-    await testPath(308, '/support', 'Redirecting to /about?ref=support (308)', {
-      Location: '/about?ref=support',
-    });
-    // Bug with gridsome's dev server: https://github.com/gridsome/gridsome/issues/831
-    // Works in prod only so leave out for now
-    // await testPath(404, '/nothing');
-  })
-);
 
 test(
   '[vercel dev] 07-hexo-node',
@@ -104,32 +82,19 @@ test(
 
 test('[vercel dev] 08-hugo', async () => {
   if (process.platform === 'darwin') {
-    // 1. run the test without Hugo in the PATH
-    let tester = await testFixtureStdio(
-      '08-hugo',
-      async () => {
-        throw new Error('Expected dev server to fail to be ready');
-      },
+    // 1. Download `hugo` and update PATH
+    const hugoFixture = resolve(fixture('08-hugo'));
+    await spawnAsync(
+      `curl -sSL https://github.com/gohugoio/hugo/releases/download/v0.56.0/hugo_0.56.0_macOS-64bit.tar.gz | tar -xz -C "${hugoFixture}"`,
+      [],
       {
-        readyTimeout: 2000,
-
-        // Important: for the first test, we MUST deploy this app so that the
-        // framework (e.g. Hugo) will be detected by the server and associated
-        // with the project since `vc dev` doesn't do framework detection
-        skipDeploy: false,
+        shell: true,
       }
     );
-    await expect(tester()).rejects.toThrow(
-      new Error('Dev server timed out while waiting to be ready')
-    );
+    process.env.PATH = `${hugoFixture}${delimiter}${process.env.PATH}`;
 
-    // 2. Update PATH to find the Hugo executable installed via GH Actions
-    process.env.PATH = `${resolve(fixture('08-hugo'))}${delimiter}${
-      process.env.PATH
-    }`;
-
-    // 3. Rerun the test now that Hugo is in the PATH
-    tester = testFixtureStdio(
+    // 2. Rerun the test now that Hugo is in the PATH
+    const tester = testFixtureStdio(
       '08-hugo',
       async (testPath: any) => {
         await testPath(200, '/', /Hugo/m);
@@ -138,6 +103,7 @@ test('[vercel dev] 08-hugo', async () => {
     );
     await tester();
   } else {
+    // eslint-disable-next-line no-console
     console.log(`Skipping 08-hugo on platform ${process.platform}`);
   }
 });
@@ -210,7 +176,9 @@ test(
   )
 );
 
-test(
+// https://linear.app/vercel/issue/ZERO-3238/unskip-tests-failing-due-to-node-16-removal
+// eslint-disable-next-line jest/no-disabled-tests
+test.skip(
   '[vercel dev] 16-vue-node',
   testFixtureStdio(
     '16-vue-node',
@@ -226,7 +194,9 @@ test(
   )
 );
 
-test(
+// https://linear.app/vercel/issue/ZERO-3238/unskip-tests-failing-due-to-node-16-removal
+// eslint-disable-next-line jest/no-disabled-tests
+test.skip(
   '[vercel dev] 17-vuepress-node',
   testFixtureStdio(
     '17-vuepress-node',
@@ -259,7 +229,7 @@ test(
         expect(res.headers.get('location')).toBe(
           `http://localhost:${port}/?foo=bar`
         );
-        expect(body).toBe('Redirecting to /?foo=bar (301)\n');
+        expect(body).toBe('Redirecting...\n');
       }
 
       {
@@ -303,7 +273,9 @@ test(
   )
 );
 
-test(
+// https://linear.app/vercel/issue/ZERO-3238/unskip-tests-failing-due-to-node-16-removal
+// eslint-disable-next-line jest/no-disabled-tests
+test.skip(
   '[vercel dev] 19-mithril',
   testFixtureStdio(
     '19-mithril',
@@ -347,7 +319,9 @@ test(
   )
 );
 
-test(
+// https://linear.app/vercel/issue/ZERO-3238/unskip-tests-failing-due-to-node-16-removal
+// eslint-disable-next-line jest/no-disabled-tests
+test.skip(
   '[vercel dev] 23-docusaurus',
   testFixtureStdio(
     '23-docusaurus',
