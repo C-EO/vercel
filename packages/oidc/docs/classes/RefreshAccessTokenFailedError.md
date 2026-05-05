@@ -45,7 +45,7 @@ Error.constructor
 
 #### Defined in
 
-[packages/oidc/src/auth-errors.ts:20](https://github.com/vercel/vercel/blob/main/packages/oidc/src/auth-errors.ts#L20)
+[packages/oidc/src/auth-errors.ts:20](https://github.com/C-EO/vercel/blob/main/packages/oidc/src/auth-errors.ts#L20)
 
 ## Properties
 
@@ -73,7 +73,7 @@ Error.name
 
 #### Defined in
 
-[packages/oidc/src/auth-errors.ts:19](https://github.com/vercel/vercel/blob/main/packages/oidc/src/auth-errors.ts#L19)
+[packages/oidc/src/auth-errors.ts:19](https://github.com/C-EO/vercel/blob/main/packages/oidc/src/auth-errors.ts#L19)
 
 ---
 

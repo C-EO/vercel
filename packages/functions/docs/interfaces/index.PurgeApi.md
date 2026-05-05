@@ -42,7 +42,7 @@ A promise that resolves when the delete is complete.
 
 #### Defined in
 
-[packages/functions/src/purge/types.ts:54](https://github.com/vercel/vercel/blob/main/packages/functions/src/purge/types.ts#L54)
+[packages/functions/src/purge/types.ts:54](https://github.com/C-EO/vercel/blob/main/packages/functions/src/purge/types.ts#L54)
 
 ---
 
@@ -73,7 +73,7 @@ A promise that resolves when the delete is complete.
 
 #### Defined in
 
-[packages/functions/src/purge/types.ts:31](https://github.com/vercel/vercel/blob/main/packages/functions/src/purge/types.ts#L31)
+[packages/functions/src/purge/types.ts:31](https://github.com/C-EO/vercel/blob/main/packages/functions/src/purge/types.ts#L31)
 
 ---
 
@@ -102,7 +102,7 @@ A promise that resolves when the invalidate is complete.
 
 #### Defined in
 
-[packages/functions/src/purge/types.ts:43](https://github.com/vercel/vercel/blob/main/packages/functions/src/purge/types.ts#L43)
+[packages/functions/src/purge/types.ts:43](https://github.com/C-EO/vercel/blob/main/packages/functions/src/purge/types.ts#L43)
 
 ---
 
@@ -131,4 +131,4 @@ A promise that resolves when the invalidate is complete.
 
 #### Defined in
 
-[packages/functions/src/purge/types.ts:20](https://github.com/vercel/vercel/blob/main/packages/functions/src/purge/types.ts#L20)
+[packages/functions/src/purge/types.ts:20](https://github.com/C-EO/vercel/blob/main/packages/functions/src/purge/types.ts#L20)
