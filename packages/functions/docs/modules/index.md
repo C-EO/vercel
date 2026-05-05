@@ -58,7 +58,7 @@ A promise that resolves when the tag is added.
 
 #### Defined in
 
-[packages/functions/src/addcachetag/types.ts:8](https://github.com/vercel/vercel/blob/main/packages/functions/src/addcachetag/types.ts#L8)
+[packages/functions/src/addcachetag/types.ts:8](https://github.com/C-EO/vercel/blob/main/packages/functions/src/addcachetag/types.ts#L8)
 
 ## Functions
 
@@ -78,7 +78,7 @@ A promise that resolves when the tag is added.
 
 #### Defined in
 
-[packages/functions/src/addcachetag/index.ts:3](https://github.com/vercel/vercel/blob/main/packages/functions/src/addcachetag/index.ts#L3)
+[packages/functions/src/addcachetag/index.ts:3](https://github.com/C-EO/vercel/blob/main/packages/functions/src/addcachetag/index.ts#L3)
 
 ---
 
@@ -112,7 +112,7 @@ attachDatabasePool(pgPool);
 
 #### Defined in
 
-[packages/functions/src/db-connections/index.ts:225](https://github.com/vercel/vercel/blob/main/packages/functions/src/db-connections/index.ts#L225)
+[packages/functions/src/db-connections/index.ts:225](https://github.com/C-EO/vercel/blob/main/packages/functions/src/db-connections/index.ts#L225)
 
 ---
 
@@ -133,7 +133,7 @@ attachDatabasePool(pgPool);
 
 #### Defined in
 
-[packages/functions/src/purge/index.ts:28](https://github.com/vercel/vercel/blob/main/packages/functions/src/purge/index.ts#L28)
+[packages/functions/src/purge/index.ts:28](https://github.com/C-EO/vercel/blob/main/packages/functions/src/purge/index.ts#L28)
 
 ---
 
@@ -154,7 +154,7 @@ attachDatabasePool(pgPool);
 
 #### Defined in
 
-[packages/functions/src/purge/index.ts:12](https://github.com/vercel/vercel/blob/main/packages/functions/src/purge/index.ts#L12)
+[packages/functions/src/purge/index.ts:12](https://github.com/C-EO/vercel/blob/main/packages/functions/src/purge/index.ts#L12)
 
 ---
 
@@ -178,7 +178,7 @@ Use attachDatabasePool instead.
 
 #### Defined in
 
-[packages/functions/src/db-connections/index.ts:225](https://github.com/vercel/vercel/blob/main/packages/functions/src/db-connections/index.ts#L225)
+[packages/functions/src/db-connections/index.ts:225](https://github.com/C-EO/vercel/blob/main/packages/functions/src/db-connections/index.ts#L225)
 
 ---
 
@@ -226,7 +226,7 @@ The location information of the request, in this way:
 
 #### Defined in
 
-[packages/functions/src/headers.ts:180](https://github.com/vercel/vercel/blob/main/packages/functions/src/headers.ts#L180)
+[packages/functions/src/headers.ts:180](https://github.com/C-EO/vercel/blob/main/packages/functions/src/headers.ts#L180)
 
 ---
 
@@ -261,7 +261,7 @@ An instance of the Vercel Runtime Cache.
 
 #### Defined in
 
-[packages/functions/src/cache/index.ts:33](https://github.com/vercel/vercel/blob/main/packages/functions/src/cache/index.ts#L33)
+[packages/functions/src/cache/index.ts:33](https://github.com/C-EO/vercel/blob/main/packages/functions/src/cache/index.ts#L33)
 
 ---
 
@@ -311,7 +311,7 @@ https://vercel.com/docs/projects/environment-variables/system-environment-variab
 
 #### Defined in
 
-[packages/functions/src/get-env.ts:6](https://github.com/vercel/vercel/blob/main/packages/functions/src/get-env.ts#L6)
+[packages/functions/src/get-env.ts:6](https://github.com/C-EO/vercel/blob/main/packages/functions/src/get-env.ts#L6)
 
 ---
 
@@ -331,7 +331,7 @@ https://vercel.com/docs/projects/environment-variables/system-environment-variab
 
 #### Defined in
 
-[packages/functions/src/purge/index.ts:23](https://github.com/vercel/vercel/blob/main/packages/functions/src/purge/index.ts#L23)
+[packages/functions/src/purge/index.ts:23](https://github.com/C-EO/vercel/blob/main/packages/functions/src/purge/index.ts#L23)
 
 ---
 
@@ -351,7 +351,7 @@ https://vercel.com/docs/projects/environment-variables/system-environment-variab
 
 #### Defined in
 
-[packages/functions/src/purge/index.ts:4](https://github.com/vercel/vercel/blob/main/packages/functions/src/purge/index.ts#L4)
+[packages/functions/src/purge/index.ts:4](https://github.com/C-EO/vercel/blob/main/packages/functions/src/purge/index.ts#L4)
 
 ---
 
@@ -386,7 +386,7 @@ The IP address of the request.
 
 #### Defined in
 
-[packages/functions/src/headers.ts:131](https://github.com/vercel/vercel/blob/main/packages/functions/src/headers.ts#L131)
+[packages/functions/src/headers.ts:131](https://github.com/C-EO/vercel/blob/main/packages/functions/src/headers.ts#L131)
 
 ---
 
@@ -434,7 +434,7 @@ export default function middleware(_req: Request) {
 
 #### Defined in
 
-[packages/functions/src/middleware.ts:145](https://github.com/vercel/vercel/blob/main/packages/functions/src/middleware.ts#L145)
+[packages/functions/src/middleware.ts:145](https://github.com/C-EO/vercel/blob/main/packages/functions/src/middleware.ts#L145)
 
 ---
 
@@ -496,7 +496,7 @@ export const config = { matcher: '/api/users/:path*' };
 
 #### Defined in
 
-[packages/functions/src/middleware.ts:101](https://github.com/vercel/vercel/blob/main/packages/functions/src/middleware.ts#L101)
+[packages/functions/src/middleware.ts:101](https://github.com/C-EO/vercel/blob/main/packages/functions/src/middleware.ts#L101)
 
 ---
 
@@ -533,4 +533,4 @@ export function GET(request) {
 
 #### Defined in
 
-[packages/functions/src/wait-until.ts:19](https://github.com/vercel/vercel/blob/main/packages/functions/src/wait-until.ts#L19)
+[packages/functions/src/wait-until.ts:19](https://github.com/C-EO/vercel/blob/main/packages/functions/src/wait-until.ts#L19)
