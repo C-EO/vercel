@@ -6,7 +6,7 @@
 
 > **getVercelOidcTokenSync**(): `string`
 
-Defined in: [packages/oidc/src/get-vercel-oidc-token.ts:124](https://github.com/vercel/vercel/blob/main/packages/oidc/src/get-vercel-oidc-token.ts#L124)
+Defined in: [packages/oidc/src/get-vercel-oidc-token.ts:124](https://github.com/C-EO/vercel/blob/main/packages/oidc/src/get-vercel-oidc-token.ts#L124)
 
 Gets the current OIDC token from the request context or the environment variable.
 
