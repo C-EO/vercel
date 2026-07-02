@@ -1,5 +1,12 @@
 # vercel
 
+## 54.18.8
+
+### Patch Changes
+
+- 84c01ff: Add `install` as an alias for `vercel integration add`.
+- 6e004b1: Accept all marketplace integration legal documents (addendum, privacy policy, terms of service) with a single confirmation instead of one prompt each. The links are now listed together, each on its own line, before asking.
+
 ## 54.18.7
 
 ### Patch Changes
