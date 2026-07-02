@@ -6,7 +6,7 @@
 
 > **VercelOidcExchangeInit** = \{ `audience`: `string`; `jti?`: `string`; `skipTokenCache?`: `boolean`; \} \| \{ `audience?`: `undefined`; `jti?`: `never`; `skipTokenCache?`: `never`; \}
 
-Defined in: [aws-credentials-provider.ts:30](https://github.com/vercel/vercel/blob/main/packages/oidc-aws-credentials-provider/src/aws-credentials-provider.ts#L30)
+Defined in: [aws-credentials-provider.ts:30](https://github.com/C-EO/vercel/blob/main/packages/oidc-aws-credentials-provider/src/aws-credentials-provider.ts#L30)
 
 The Vercel OIDC token options layered on top of the STS init.
 
