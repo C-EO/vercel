@@ -6,7 +6,7 @@
 
 > **invalidateBySrcImage**(`src`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
 
-Defined in: [packages/functions/src/purge/index.ts:23](https://github.com/vercel/vercel/blob/main/packages/functions/src/purge/index.ts#L23)
+Defined in: [packages/functions/src/purge/index.ts:23](https://github.com/C-EO/vercel/blob/main/packages/functions/src/purge/index.ts#L23)
 
 ## Parameters
 

@@ -6,7 +6,7 @@
 
 > **getVercelOidcTokenSync**(): `string`
 
-Defined in: [packages/oidc/src/get-vercel-oidc-token-sync.ts:25](https://github.com/vercel/vercel/blob/main/packages/oidc/src/get-vercel-oidc-token-sync.ts#L25)
+Defined in: [packages/oidc/src/get-vercel-oidc-token-sync.ts:25](https://github.com/C-EO/vercel/blob/main/packages/oidc/src/get-vercel-oidc-token-sync.ts#L25)
 
 ## Returns
 
