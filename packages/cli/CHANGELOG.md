@@ -1,5 +1,54 @@
 # vercel
 
+## 56.0.0
+
+### Major Changes
+
+- 4998ec8: `vercel routes export` now uses `--output` (`-o`) instead of `--format` to select the output file format (`json` or `ts`, dotted forms like `.ts` also accepted). This frees `--format` to align with the standard output-format convention used by other commands. Update any scripts from `routes export --format ts` to `routes export --output ts`.
+
+### Minor Changes
+
+- 5ae15fa: Add `vercel ai-gateway coding-agents setup` to connect Claude Code to the AI Gateway from an existing API key (`--key`): it sets the gateway base URL and authentication in `~/.claude/settings.json` (honoring `CLAUDE_CONFIG_DIR`), never pins a default model, is idempotent, masks the key in output, skips unparseable configs instead of clobbering them, edits existing config files in place so your own keys and formatting are untouched, and emits a structured JSON result in non-interactive mode.
+- 24c2b3c: Automatically install a marketplace product's declared agent skills after `vercel integration add` provisions it, replacing the interactive confirmation prompt. The transcript ends with an install summary linking to the product's marketplace page, and failed installs fall back to printing the manual `npx skills add` command.
+- 607f0ef: Add service information to deploy-manifest.
+- 8642a47: Remove the `vercel oauth-apps` sub-command, reverting the OAuth / connected apps parity scope.
+- 57e2091: `vercel env pull` now keeps variables that only exist in the local env file instead of deleting them. Kept variables are listed in the command output. CLI-managed variables (`VERCEL_OIDC_TOKEN` and analytics IDs) are still removed when they no longer exist upstream.
+
+### Patch Changes
+
+- 683f013: `ai-gateway coding-agents setup` can now **provision a key** for you: run it without `--key` and it creates an AI Gateway API key (prompting for the owning team and a name, or using `--name`/`--scope` and the current scope with `--yes`), then writes that key into the agent configs.
+
+  Re-running when everything is already set up is no longer a dead end: it prompts to **rotate the key or switch team**, and `--reconfigure` does the same non-interactively (useful for a rotated or expired key, or a different org). A plain re-run stays a no-op.
+
+- 097395b: `ai-gateway coding-agents setup` can now put **limits** on a key it creates: a spend cap (`--budget` with `--refresh-period` / `--include-byok`) and an expiry (`--expiration` `7d|30d|60d|90d|1y|none`). Interactively it asks whether to set each. The limits are sent only when creating a key; reusing one with `--key` is unaffected.
+- fcdf5cd: Store the `coding-agents setup` API key in the macOS login Keychain instead of writing it into plaintext config files. When available it's used automatically: env-based agents resolve the key from the shell at runtime (a managed shell-rc block runs `security find-generic-password`), so the secret never lands in a config file. Pass `--no-keychain`, or run off macOS, to embed the key directly; it also falls back to embedding if the Keychain write fails.
+- bb16ec9: `ai-gateway coding-agents setup` now previews before it writes. `--dry-run` and the pre-apply summary show the planned per-file changes as a masked diff, the resolved key/quota/expiry, and the `.bak` backups it would create (suppressed with `--no-backup`), then ask for confirmation before applying. For non-standard setups, `--agent-config <id>=<path>` overrides an agent's config-file location and `--shell-rc <path>` the shell rc; interactively it offers a custom path when an agent isn't found at its default location.
+- 35fba40: Attribute marketplace agent-skill auto-installs in the skills CLI's install telemetry by passing `--metadata` (origin, flow, integration and product slugs) to the `npx skills add` invocation. Older skills versions (< 1.5.16) ignore the flag and install unchanged.
+- Updated dependencies [607f0ef]
+- Updated dependencies [7bbfd48]
+- Updated dependencies [9637ae6]
+- Updated dependencies [f11c4c4]
+  - @vercel/build-utils@13.33.0
+  - @vercel/python@6.50.0
+  - @vercel/backends@0.8.23
+  - @vercel/container@0.0.5
+  - @vercel/elysia@0.1.100
+  - @vercel/express@0.1.114
+  - @vercel/fastify@0.1.103
+  - @vercel/go@3.10.2
+  - @vercel/h3@0.1.109
+  - @vercel/hono@0.2.103
+  - @vercel/hydrogen@1.4.0
+  - @vercel/koa@0.1.83
+  - @vercel/nestjs@0.2.104
+  - @vercel/next@4.20.4
+  - @vercel/node@5.8.24
+  - @vercel/redwood@2.5.0
+  - @vercel/remix-builder@5.9.1
+  - @vercel/ruby@2.5.1
+  - @vercel/rust@1.4.0
+  - @vercel/static-build@2.11.6
+
 ## 55.0.0
 
 ### Major Changes
